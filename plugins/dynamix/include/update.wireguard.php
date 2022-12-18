@@ -118,7 +118,7 @@ function addDocker($vtun) {
     [$device,$thisnet,$gateway] = thisNet();
     exec("ip -4 rule add from $network table $index");
     exec("ip -4 route add unreachable default table $index");
-    exec("ip -4 route add $thisnet via $gateway dev $device able $index");
+    exec("ip -4 route add $thisnet via $gateway dev $device table $index");
   }
   return $error;
 }

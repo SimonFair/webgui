@@ -83,15 +83,31 @@ if ($_POST['vms'] && ($display=='icons' || $display=='vms')) {
     $id = $lv->domain_get_id($res);
     $state = $lv->domain_state_translate($dom['state']);
     $vmrcport = $lv->domain_get_vnc_port($res);
+    $autoport = $lv->domain_get_vmrc_autoport($res);
     $vmrcurl = '';
+    $arrConfig = domain_to_config($uuid);
     if ($vmrcport > 0) {
       $wsport = $lv->domain_get_ws_port($res);
       $vmrcprotocol = $lv->domain_get_vmrc_protocol($res) ;
       $vmrcurl = autov('/plugins/dynamix.vm.manager/'.$vmrcprotocol.'.html',true).'&autoconnect=true&host=' . $_SERVER['HTTP_HOST'] ;
-      if ($vmrcprotocol == "spice") $vmrcurl .= '&port=/wsproxy/'.$vmrcport.'/' ; else $vmrcurl .= '&port=&path=/wsproxy/' . $wsport . '/';
-    } else {
-      $vmrcport = ($vmrcport < 0) ? "auto" : "";
-    }
+      if ($vmrcprotocol == "spice") $vmrcurl .= '&vmname='. urlencode($vm) . '&port=/wsproxy/'.$vmrcport.'/' ; else $vmrcurl .= '&port=&path=/wsproxy/' . $wsport . '/';
+    } elseif ($vmrcport == -1 || $autoport) {
+      $vmrcprotocol = $lv->domain_get_vmrc_protocol($res) ;
+      if ($autoport == "yes") $auto = "auto" ; else $auto="manual" ;
+    } elseif (!empty($arrConfig['gpu'])) {
+      $arrValidGPUDevices = getValidGPUDevices();
+      foreach ($arrConfig['gpu'] as $arrGPU) {
+        foreach ($arrValidGPUDevices as $arrDev) {
+          if ($arrGPU['id'] == $arrDev['id']) {
+            if (count(array_filter($arrValidGPUDevices, function($v) use ($arrDev) { return $v['name'] == $arrDev['name']; })) > 1) {
+              $vmrcprotocol = "VGA" ;
+            } else {
+              $vmrcprotocol = "VGA" ;
+            }
+          }
+        }
+      }
+     }
     $template = $lv->_get_single_xpath_result($res, '//domain/metadata/*[local-name()=\'vmtemplate\']/@name');
     if (empty($template)) $template = 'Custom';
     $log = (is_file("/var/log/libvirt/qemu/$vm.log") ? "libvirt/qemu/$vm.log" : '');

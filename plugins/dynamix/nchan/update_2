@@ -456,7 +456,7 @@ while (true) {
     $echo[4] .= "\0";
     if ($check) {
       $frmt = $display['date'].($display['date']!='%c' ? ", {$display['time']}" : "");
-      $echo[4] .= sprintf(_('Next check scheduled on **%s**'),_(strftime($frmt,$time+$t),0));
+      $echo[4] .= sprintf(_('Next check scheduled on **%s**'),_(my_date($frmt,$time+$t),0));
       $echo[4] .= "<br><i class='fa fa-fw fa-clock-o'></i> "._('Due in').": "._(my_clock(floor($t/60)),2);
     } else {
       $echo[4] .= _('Scheduled parity check is disabled');

@@ -24,20 +24,6 @@ require_once "$docroot/webGui/include/Translations.php";
 
 $month = [' Jan '=>'-01-',' Feb '=>'-02-',' Mar '=>'-03-',' Apr '=>'-04-',' May '=>'-05-',' Jun '=>'-06-',' Jul '=>'-07-',' Aug '=>'-08-',' Sep '=>'-09-',' Oct '=>'-10-',' Nov '=>'-11-',' Dec '=>'-12-'];
 
-function write(...$messages){
-  $com = curl_init();
-  curl_setopt_array($com,[
-    CURLOPT_URL => 'http://localhost/pub/phistory?buffer_length=1',
-    CURLOPT_UNIX_SOCKET_PATH => '/var/run/nginx.socket',
-    CURLOPT_POST => 1,
-    CURLOPT_RETURNTRANSFER => true
-  ]);
-  foreach ($messages as $message) {
-    curl_setopt($com, CURLOPT_POSTFIELDS, $message);
-    curl_exec($com);
-  }
-  curl_close($com);
-}
 function this_plus($val, $word, $last) {
   return $val>0 ? (($val||$last)?($val.' '.$word.($last?'':', ')):'') : '';
 }
@@ -66,6 +52,7 @@ if (file_exists($log)) {
       default     : $action = '-'; break;
     }
     $date = str_replace(' ',', ',strtr(str_replace('  ',' 0',$date),$month));
+    $date .= ' ('._(date('l',strtotime($date)),0).')';
     $size = $size ? my_scale($size*1024,$unit,-1)." $unit" : '-';
     $duration = this_duration($duration);
     // handle both old and new speed notation
@@ -80,5 +67,5 @@ if ($list) {
 } else {
   $list[] = "<tr><td colspan='7' style='text-align:center;padding-top:12px'>"._('No parity check history present')."!</td></tr>";
 }
-write($head.implode($list)."</table>",'_DONE_','');
+echo $head,implode($list),"</table>";
 ?>

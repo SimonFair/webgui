@@ -26,27 +26,10 @@ $file  = realpath($argv[1] ?? '');
 $valid = ['/var/tmp/','/tmp/plugins/'];
 $good  = false;
 
-function write(...$messages){
-  $com = curl_init();
-  curl_setopt_array($com,[
-    CURLOPT_URL => 'http://localhost/pub/changes?buffer_length=1',
-    CURLOPT_UNIX_SOCKET_PATH => '/var/run/nginx.socket',
-    CURLOPT_POST => 1,
-    CURLOPT_RETURNTRANSFER => true
-  ]);
-  foreach ($messages as $message) {
-    curl_setopt($com, CURLOPT_POSTFIELDS, $message);
-    curl_exec($com);
-  }
-  curl_close($com);
-}
-
-if ($file) {
-  foreach ($valid as $check) if (strncmp($file,$check,strlen($check))===0) $good = true;
-  if ($good && pathinfo($file)['extension']=='txt') write(Markdown(file_get_contents($file)));
+foreach ($valid as $check) if (strncmp($file,$check,strlen($check))===0) $good = true;
+if ($file && $good && pathinfo($file)['extension']=='txt') {
+  echo Markdown(file_get_contents($file));
 } else {
-  write(Markdown("*"._('No release notes available')."!*"));
+  echo Markdown("*"._('No release notes available')."!*");
 }
-if (basename($file)!='my_alerts.txt') write('_DONE_');
-write('');
 ?>

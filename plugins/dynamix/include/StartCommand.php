@@ -24,7 +24,7 @@ if (isset($_POST['kill']) && $_POST['kill'] > 1) {
   die();
 }
 
-$start = isset($_POST['start']) && $_POST['start'] == 1;
+$start = $_POST['start'] ?? 0;
 [$command,$args] = explode(' ',unscript($_POST['cmd']??''),2);
 
 // find absolute path of command
@@ -37,9 +37,15 @@ if ($command && strncmp($name,$path,strlen($path))===0) {
   if (isset($_POST['pid'])) {
     // return running pid
     $pid = pgrep($name);
-  } elseif ($start or !pgrep($name)) {
-    // start command in background and return pid
-    $pid = exec("nohup $name $args 1>/dev/null 2>&1 & echo \$!");
+  } elseif ($start==2) {
+    // execute command and return result - post request
+    $run = popen("$name $args",'r');
+    while (!feof($run)) echo fgets($run);
+    pclose($run);
+    $pid = '';
+  } elseif ($start==1 or !pgrep($name)) {
+    // start command in background and return pid - nchan channel
+    $pid = exec("nohup bash -c 'sleep .3 && $name $args' 1>/dev/null 2>&1 & echo \$!");
   }
 }
 echo $pid;

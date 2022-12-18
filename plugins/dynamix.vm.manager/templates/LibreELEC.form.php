@@ -317,10 +317,13 @@ $hdrXML = "<?xml version='1.0' encoding='UTF-8'?>\n"; // XML encoding declaratio
 
 			// hot-attach any new usb devices
 			foreach ($arrNewUSBIDs as $strNewUSBID) {
+				if (strpos($strNewUSBID,"#remove")) continue ;
+				$remove = explode('#', $strNewUSBID) ;
+				$strNewUSBID2 = $remove[0] ;
 				foreach ($arrExistingConfig['usb'] as $arrExistingUSB) {
-					if ($strNewUSBID == $arrExistingUSB['id']) continue 2;
+					if ($strNewUSBID2 == $arrExistingUSB['id']) continue 2;
 				}
-				[$strVendor,$strProduct] = my_explode(':', $strNewUSBID);
+				[$strVendor,$strProduct] = my_explode(':', $strNewUSBID2);
 				// hot-attach usb
 				file_put_contents('/tmp/hotattach.tmp', "<hostdev mode='subsystem' type='usb'><source startupPolicy='optional'><vendor id='0x".$strVendor."'/><product id='0x".$strProduct."'/></source></hostdev>");
 				exec("virsh attach-device ".escapeshellarg($uuid)." /tmp/hotattach.tmp --live 2>&1", $arrOutput, $intReturnCode);
@@ -449,7 +452,7 @@ $hdrXML = "<?xml version='1.0' encoding='UTF-8'?>\n"; // XML encoding declaratio
 <input type="hidden" name="disk[0][image]" id="disk_0" value="<?=htmlspecialchars($arrConfig['disk'][0]['image'])?>">
 <input type="hidden" name="disk[0][dev]" value="<?=htmlspecialchars($arrConfig['disk'][0]['dev'])?>">
 <input type="hidden" name="disk[0][readonly]" value="1">
-<input type="hidden" name="disk[0][boot]" value="1">
+<input type="hidden" class="bootorder" name="disk[0][boot]" value="1">
 
 	<div class="installed">
 		<table>
@@ -540,7 +543,7 @@ $hdrXML = "<?xml version='1.0' encoding='UTF-8'?>\n"; // XML encoding declaratio
 				<td>_(CPU Mode)_:</td>
 				<td>
 					<select name="domain[cpumode]" title="_(define type of cpu presented to this vm)_">
-					<?mk_dropdown_options(['host-passthrough' => _('Host Passthrough').' (' . $strCPUModel . ')', 'emulated' => _('Emulated').' ('._('QEMU64').')'], $arrConfig['domain']['cpumode']);?>
+					<?mk_dropdown_options(['host-passthrough' => _('Host Passthrough').' (' . $strCPUModel . ')', 'custom' => _('Emulated').' ('._('QEMU64').')'], $arrConfig['domain']['cpumode']);?>
 					</select>
 				</td>
 			</tr>
@@ -652,7 +655,7 @@ $hdrXML = "<?xml version='1.0' encoding='UTF-8'?>\n"; // XML encoding declaratio
 			<tr class="advanced">
 				<td>_(BIOS)_:</td>
 				<td>
-					<select name="domain[ovmf]" id="domain_ovmf" class="narrow" title="_(Select the BIOS)_.  _(SeaBIOS will work for most)_.  _(OVMF requires a UEFI-compatable OS)_ (_(e.g.)_ _(Windows 8/2012, newer Linux distros)_) _(and if using graphics device passthrough it too needs UEFI)_">
+					<select name="domain[ovmf]" id="domain_ovmf" class="narrow" title="_(Select the BIOS)_.  _(SeaBIOS will work for most)_.  _(OVMF requires a UEFI-compatable OS)_ (_(e.g.)_ _(Windows 8/2012, newer Linux distros)_) _(and if using graphics device passthrough it too needs UEFI)_" onchange="BIOSChange(this)">
 					<?
 						echo mk_option($arrConfig['domain']['ovmf'], '0', _('SeaBIOS'));
 
@@ -663,6 +666,18 @@ $hdrXML = "<?xml version='1.0' encoding='UTF-8'?>\n"; // XML encoding declaratio
 						}
 					?>
 					</select>
+					<?			
+			$usbboothidden =  "hidden" ;
+				if ($arrConfig['domain']['ovmf'] != '0') $usbboothidden = "" ;
+				?>
+				<span id="USBBoottext" class="advanced" <?=$usbboothidden?>>_(Enable USB boot)_:</span>
+								
+				<select name="domain[usbboot]" id="domain_usbboot" class="narrow" title="_(define OS boot options" <?=$usbboothidden?> onchange="USBBootChange(this)">
+				<?
+					echo mk_option($arrConfig['domain']['usbboot'], 'No', 'No');
+					echo mk_option($arrConfig['domain']['usbboot'], 'Yes', 'Yes');
+				?>
+				</select>
 				</td>
 			</tr>
 		</table>
@@ -678,6 +693,10 @@ $hdrXML = "<?xml version='1.0' encoding='UTF-8'?>\n"; // XML encoding declaratio
 				</p>
 				<p>
 					Once a VM is created this setting cannot be adjusted.
+				</p>
+				<p>
+				<b>USB Boot</b><br>
+				Adds support for booting from USB devices using UEFI. No device boot orders can be specified at the same time as this option.<br>
 				</p>
 			</blockquote>
 		</div>
@@ -918,6 +937,12 @@ $hdrXML = "<?xml version='1.0' encoding='UTF-8'?>\n"; // XML encoding declaratio
 						</select>
 					</td>
 				</tr>
+				<tr class="advanced">
+					<td>_(Boot Order)_:</td>
+					<td>
+					<input type="number" size="5" maxlength="5" id="nic[<?=$i?>][boot]" class="narrow bootorder" <?=$bootdisable?>  style="width: 50px;" name="nic[<?=$i?>][boot]"   title="_(Boot order)_"  value="<?=$arrNic['boot']?>" >
+					</td>
+				</tr>	
 			</table>
 			<?if ($i == 0) {?>
 			<div class="advanced">
@@ -936,6 +961,8 @@ $hdrXML = "<?xml version='1.0' encoding='UTF-8'?>\n"; // XML encoding declaratio
 					<b>Network Model</b><br>
 					Default and recommended is 'virtio-net', which gives improved stability. To improve performance 'virtio' can be selected, but this may lead to stability issues.
 				</p>
+
+					<p>Use boot order to set device as bootable and boot sequence.</p>
 
 					<p>Additional devices can be added/removed by clicking the symbols to the left.</p>
 				</blockquote>
@@ -978,23 +1005,31 @@ $hdrXML = "<?xml version='1.0' encoding='UTF-8'?>\n"; // XML encoding declaratio
 						</select>
 					</td>
 				</tr>
+				<tr class="advanced">
+					<td>_(Boot Order)_:</td>
+					<td>
+					<input type="number" size="5" maxlength="5" id="nic[{{INDEX}}][boot]" class="narrow bootorder" <?=$bootdisable?>  style="width: 50px;" name="nic[{{INDEX}}][boot]"   title="_(Boot order)_"  value="" >
+					</td>
+				</tr>
 			</table>
 		</script>
 
 		<table>
 			<tr><td></td>
-			<td>_(Select)_&nbsp&nbsp_(Optional)_</td></tr></div> 
+			<td>_(Select)_&nbsp&nbsp_(Optional)_&nbsp&nbsp_(Boot Order)_</td></tr></div> 
 			<tr>
 			<tr>
 				<td>_(USB Devices)_:</td>
 				<td>
-					<div class="textarea" style="width:640px">
+					<div class="textarea" style="width:850px">
 					<?
 						if (!empty($arrVMUSBs)) {
 							foreach($arrVMUSBs as $i => $arrDev) {
 							?>
 							<label for="usb<?=$i?>">&nbsp&nbsp&nbsp&nbsp<input type="checkbox" name="usb[]" id="usb<?=$i?>" value="<?=htmlspecialchars($arrDev['id'])?>" <?if (count(array_filter($arrConfig['usb'], function($arr) use ($arrDev) { return ($arr['id'] == $arrDev['id']); }))) echo 'checked="checked"';?>
-							/> &nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp <input type="checkbox" name="usbopt[]" id="usbopt<?=$i?>" value="<?=htmlspecialchars($arrDev['id'])?>" <?if ($arrDev["startupPolicy"] =="optional") echo 'checked="checked"';?>/>&nbsp&nbsp&nbsp <?=htmlspecialchars($arrDev['name'])?> (<?=htmlspecialchars($arrDev['id'])?>)</label><br/>
+							/> &nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp <input type="checkbox" name="usbopt[<?=htmlspecialchars($arrDev['id'])?>]]" id="usbopt<?=$i?>" value="<?=htmlspecialchars($arrDev['id'])?>" <?if ($arrDev["startupPolicy"] =="optional") echo 'checked="checked"';?>/>&nbsp&nbsp&nbsp&nbsp&nbsp
+							<input type="number" size="5" maxlength="5" id="usbboot<?=$i?>" class="narrow bootorder" <?=$bootdisable?>  style="width: 50px;" name="usbboot[<?=htmlspecialchars($arrDev['id'])?>]]"   title="_(Boot order)_"  value="<?=$arrDev['usbboot']?>" >
+							<?=htmlspecialchars($arrDev['name'])?> (<?=htmlspecialchars($arrDev['id'])?>)</label><br/>
 							<?
 							}
 						} else {
@@ -1007,32 +1042,41 @@ $hdrXML = "<?xml version='1.0' encoding='UTF-8'?>\n"; // XML encoding declaratio
 		</table>
 		<blockquote class="inline_help">
 			<p>If you wish to assign any USB devices to your guest, you can select them from this list.</p>
+			<p>Use boot order to set device as bootable and boot sequence.</p>
 			<p>Select optional if you want device to be ignored when VM starts if not present.</p>
 		</blockquote>
 
-		<table>
+	<table>
+	<tr><td></td>
+		<td>_(Select)_&nbsp&nbsp_(Boot Order)_</td></tr></div> 
+		<tr>
 			<tr>
 				<td>_(Other PCI Devices)_:</td>
 				<td>
-					<div class="textarea" style="width:640px">
-					<?
-						$intAvailableOtherPCIDevices = 0;
+				<div class="textarea" style="width: 850px">
+				<?
+					$intAvailableOtherPCIDevices = 0;
 
 						if (!empty($arrValidOtherDevices)) {
 							foreach($arrValidOtherDevices as $i => $arrDev) {
-								$extra = '';
-								if (count(array_filter($arrConfig['pci'], function($arr) use ($arrDev) { return ($arr['id'] == $arrDev['id']); }))) {
-									$extra .= ' checked="checked"';
+							$bootdisable = $extra = $pciboot = '';
+							if ($arrDev["typeid"] != "0108") $bootdisable = ' disabled="disabled"' ;
+							if (count($pcidevice=array_filter($arrConfig['pci'], function($arr) use ($arrDev) { return ($arr['id'] == $arrDev['id']); }))) {
+								$extra .= ' checked="checked"';
+								foreach ($pcidevice as $pcikey => $pcidev)  $pciboot = $pcidev["boot"];  ;
+									
 								} elseif (!in_array($arrDev['driver'], ['pci-stub', 'vfio-pci'])) {
 									//$extra .= ' disabled="disabled"';
 									continue;
 								}
 								$intAvailableOtherPCIDevices++;
 						?>
-							<label for="pci<?=$i?>"><input type="checkbox" name="pci[]" id="pci<?=$i?>" value="<?=htmlspecialchars($arrDev['id'])?>" <?=$extra?>/> <?=htmlspecialchars($arrDev['name'])?> | <?=htmlspecialchars($arrDev['type'])?> (<?=htmlspecialchars($arrDev['id'])?>)</label><br/>
-						<?
-							}
+						<label for="pci<?=$i?>">&nbsp&nbsp&nbsp&nbsp<input type="checkbox" name="pci[]" id="pci<?=$i?>" value="<?=htmlspecialchars($arrDev['id'])?>" <?=$extra?>/> &nbsp 
+						<input type="number" size="5" maxlength="5" id="pciboot<?=$i?>" class="narrow pcibootorder" <?=$bootdisable?>  style="width: 50px;" name="pciboot[<?=htmlspecialchars($arrDev['id'])?>]"   title="_(Boot order)_"  value="<?=$pciboot?>" >
+						<?=htmlspecialchars($arrDev['name'])?> | <?=htmlspecialchars($arrDev['type'])?> (<?=htmlspecialchars($arrDev['id'])?>)</label><br/>
+					<?
 						}
+					}
 
 						if (empty($intAvailableOtherPCIDevices)) {
 							echo "<i>"._('None available')."</i>";
@@ -1044,6 +1088,7 @@ $hdrXML = "<?xml version='1.0' encoding='UTF-8'?>\n"; // XML encoding declaratio
 		</table>
 		<blockquote class="inline_help">
 			<p>If you wish to assign any other PCI devices to your guest, you can select them from this list.</p>
+		    <p>Use boot order to set device as bootable and boot sequence. Only NVMe devices (PCI types 0108) supported for boot order.</p>
 		</blockquote>
 
 		<table>
@@ -1105,6 +1150,57 @@ $hdrXML = "<?xml version='1.0' encoding='UTF-8'?>\n"; // XML encoding declaratio
 <script src="<?autov('/plugins/dynamix.vm.manager/scripts/codemirror/addon/hint/libvirt-schema.js')?>"></script>
 <script src="<?autov('/plugins/dynamix.vm.manager/scripts/codemirror/mode/xml/xml.js')?>"></script>
 <script type="text/javascript">
+	
+function BIOSChange(bios) {
+		var value = bios.value;
+		if (value == "0") {
+			document.getElementById("USBBoottext").style.visibility="hidden";
+			document.getElementById("domain_usbboot").style.visibility="hidden";
+		} else {
+			document.getElementById("USBBoottext").style.display="inline";
+			document.getElementById("USBBoottext").style.visibility="visible";
+			document.getElementById("domain_usbboot").style.display="inline";
+			document.getElementById("domain_usbboot").style.visibility="visible";
+		}
+}
+
+function SetBootorderfields(usbbootvalue) {
+	var bootelements = document.getElementsByClassName("bootorder");
+	for(var i = 0; i < bootelements.length; i++) {
+		if (usbbootvalue == "Yes") {
+		bootelements[i].value = "";
+		bootelements[i].setAttribute("disabled","disabled");
+		} else bootelements[i].removeAttribute("disabled");
+	}
+	var bootelements = document.getElementsByClassName("pcibootorder");
+	const bootpcidevs = <? 	
+		$devlist = [] ;
+		foreach($arrValidOtherDevices as $i => $arrDev) {
+			if ($arrDev["typeid"] != "0108") $devlist[$arrDev['id']] = "N" ; else $devlist[$arrDev['id']] = "Y" ;
+		}
+		echo json_encode($devlist) ;
+		?>  
+
+	for(var i = 0; i < bootelements.length; i++) {
+		let bootpciid = bootelements[i].name.split('[') ;
+		bootpciid= bootpciid[1].replace(']', '') ;
+		
+		if (usbbootvalue == "Yes") {
+		bootelements[i].value = "";
+		bootelements[i].setAttribute("disabled","disabled");
+		} else {
+			// Put check for PCI Type 0108 and only remove disable if 0108.
+			if (bootpcidevs[bootpciid] === "Y") 	bootelements[i].removeAttribute("disabled");
+		}
+	}
+}
+
+function USBBootChange(usbboot) {
+	// Remove all boot orders if changed to Yes
+	var value = usbboot.value ;
+	SetBootorderfields(value) ;
+}
+
 function AutoportChange(autoport) {
 		if (autoport.value == "yes") {
 			document.getElementById("port").style.visibility="hidden";
@@ -1194,6 +1290,8 @@ $(function() {
 		},
 		hintOptions: {schemaInfo: getLibvirtSchema()}
 	});
+
+	SetBootorderfields("<?=$arrConfig['domain']['usbboot']?>") ;
 
 	function resetForm() {
 		$("#vmform .domain_vcpu").change(); // restore the cpu checkbox disabled states

@@ -64,7 +64,7 @@ function removeContainer_nchan($name) {
 function removeImage_nchan($image) {
   global $DockerClient;
   $waitID = mt_rand();
-  write("<p class='logLine'></p>","addLog\0<fieldset class='docker'><legend>"._('Removing orphan image').": ".htmlspecialchars($image)."</legend><p class='logLine'></p><span id='wait-$waitID'>"._('Please wait')." </span></fieldset>","show_Wait\0$waitID)");
+  write("<p class='logLine'></p>","addLog\0<fieldset class='docker'><legend>"._('Removing orphan image').": ".htmlspecialchars($image)."</legend><p class='logLine'></p><span id='wait-$waitID'>"._('Please wait')." </span></fieldset>","show_Wait\0$waitID");
   $retval = $DockerClient->removeImage($image);
   $out = ($retval === true) ? _('Successfully removed orphan image').": $image" : _('Error').": ".$retval;
   write("stop_Wait\0$waitID","addLog\0<b>".htmlspecialchars($out)."</b>");

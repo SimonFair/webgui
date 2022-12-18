@@ -97,13 +97,13 @@ foreach (glob($plugins,GLOB_NOSORT) as $plugin_link) {
     //support
     $support = plugin('support',$plugin_file) ?: "";
     $support = $support ? "<a href='$support' target='_blank'>"._('Support Thread')."</a>" : "";
-    //category
-    $category = plugin('category',$plugin_file) ?: (strpos($version,'-')!==false ? 'next' : 'stable');
     //author
     $author = plugin('author',$plugin_file) ?: _('anonymous');
     //version
     $version = plugin('version',$plugin_file) ?: _('unknown');
     $date = str_replace('.','',$version);
+    //category
+    $category = plugin('category',$plugin_file) ?: (strpos($version,'-')!==false ? 'next' : 'stable');
     //status
     $status = $check ? _('unknown') : _('checking').'...';
     $id = str_replace('.','-',$name);

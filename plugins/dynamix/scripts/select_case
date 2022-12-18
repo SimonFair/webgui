@@ -22,21 +22,6 @@ $_SERVER['REQUEST_URI'] = 'dashboard';
 $login_locale = $display['locale'];
 require_once "$docroot/webGui/include/Translations.php";
 
-function write(...$messages){
-  $com = curl_init();
-  curl_setopt_array($com,[
-    CURLOPT_URL => 'http://localhost/pub/selectcase?buffer_length=1',
-    CURLOPT_UNIX_SOCKET_PATH => '/var/run/nginx.socket',
-    CURLOPT_POST => 1,
-    CURLOPT_RETURNTRANSFER => true
-  ]);
-  foreach ($messages as $message) {
-    curl_setopt($com, CURLOPT_POSTFIELDS, $message);
-    curl_exec($com);
-  }
-  curl_close($com);
-}
-
 $boot   = "/boot/config/plugins/dynamix";
 $file   = $argv[1];
 $exist  = is_file("$boot/$file");
@@ -86,5 +71,5 @@ $html[] = "</div></div>";
 $html[] = "<input type='file' id='file' accept='.png' onchange='importFile(this.files[0])' style='display:none'>";
 $html[] = "</div>";
 
-write(implode($style).implode($script).implode($html),'_DONE_','');
+echo implode($style),implode($script),implode($html);
 ?>

@@ -44,8 +44,8 @@ function check_temp(&$disk,$text,$info) {
   global $notify,$saved,$server,$display,$top;
   $name = $disk['name'];
   $temp = $disk['temp'];
-  $hot  = $disk['hotTemp'] ?? $display['hot'];
-  $max  = $disk['maxTemp'] ?? $display['max'];
+  $hot  = $disk['hotTemp'] ?? $display['hot'] ?? 0;
+  $max  = $disk['maxTemp'] ?? $display['max'] ?? 0;
   $warn = exceed($temp,$max,$top) ? 'alert' : (exceed($temp,$hot,$top) ? 'warning' : false);
   $item = 'temp';
   $last = $saved[$item][$name] ?? 0;
@@ -186,7 +186,7 @@ foreach ($disks as $disk) {
   if ($disk['numErrors']>0) $errors[] = "$text - $info (errors {$disk['numErrors']})";
 // check file system of cache pool
   $item = 'pool';
-  if (in_array($name,$pools) && strpos($disk['fsType'],'btrfs')!==false) {
+  if (in_array($name,$pools) && strpos($disk['fsType']??'','btrfs')!==false) {
     $attr = 'missing';
     if (exec("/sbin/btrfs filesystem show {$disk['uuid']} 2>/dev/null|grep -c 'missing'")>0) {
       if (empty($saved[$item][$attr])) {

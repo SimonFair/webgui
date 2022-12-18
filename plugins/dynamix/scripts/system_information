@@ -22,20 +22,6 @@ $_SERVER['REQUEST_URI'] = '';
 $login_locale = $display['locale'];
 require_once "$docroot/webGui/include/Translations.php";
 
-function write(...$messages){
-  $com = curl_init();
-  curl_setopt_array($com,[
-    CURLOPT_URL => 'http://localhost/pub/sysinfo?buffer_length=1',
-    CURLOPT_UNIX_SOCKET_PATH => '/var/run/nginx.socket',
-    CURLOPT_POST => 1,
-    CURLOPT_RETURNTRANSFER => true
-  ]);
-  foreach ($messages as $message) {
-    curl_setopt($com, CURLOPT_POSTFIELDS, $message);
-    curl_exec($com);
-  }
-  curl_close($com);
-}
 function dmidecode($key, $n, $all=true) {
   $entries = array_filter(explode($key,shell_exec("dmidecode -qt$n")));
   $properties = [];
@@ -192,5 +178,5 @@ $list[] = "<tr><td>"._('Kernel').":</td><td>$kernel</td></tr>";
 $list[] = "<tr><td>"._('OpenSSL').":</td><td>$openssl</td></tr>";
 $list[] = "<tr><td>"._('Uptime').":</td><td><span class='uptime'></span></td></tr></table>";
 
-write($style.implode($list),'_DONE_','');
+echo $style,implode($list);
 ?>

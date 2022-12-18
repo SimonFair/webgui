@@ -67,7 +67,7 @@ if ($.cookie('deletepool')!=null) {
   $.removeCookie('deletepool');
   done();
 }
-<?if (strpos($disk['fsType'],"btrfs")!==false):?>
+<?if (strpos($disk['fsType']??'',"btrfs")!==false):?>
 function presetBTRFS(form,hour) {
   var mode = form.mode.value;
   form.min.disabled = mode==0;
@@ -173,7 +173,7 @@ function setGlue(form,reset) {
     $('input[name="smDevice"]').val('').hide();
     $('#helptext').hide();
   }
-  form.smGlue.value = form.smType.selectedIndex>0 ? data[n]['glue'] : "<?=$var['smGlue']?>";
+  form.smGlue.value = form.smType.selectedIndex>0 ? data[n]['glue'] : "<?=$var['smGlue']??''?>";
 }
 function prepareFS(form,cookie,value) {
   if ($(form).find('input[type="submit"]').val()=='Cancel') $.removeCookie(cookie); else $.cookie(cookie,value);
@@ -466,12 +466,12 @@ _(Minimum free space)_:
 
 <?endif;?>
 _(Warning disk utilization threshold)_ (%):
-: <input type="number" min="0" max="100" name="diskWarning.<?=$disk['idx']?>" class="narrow" value="<?=strlen($disk['warning'])?$disk['warning']:''?>" placeholder="<?=$display['warning']?>">
+: <input type="number" min="0" max="100" name="diskWarning.<?=$disk['idx']?>" class="narrow" value="<?=$disk['warning']??''?>" placeholder="<?=$display['warning']?>">
 
 :info_warning_utilization_help:
 
 _(Critical disk utilization threshold)_ (%):
-: <input type="number" min="0" max="100" name="diskCritical.<?=$disk['idx']?>" class="narrow" value="<?=strlen($disk['critical'])?$disk['critical']:''?>" placeholder="<?=$display['critical']?>")>
+: <input type="number" min="0" max="100" name="diskCritical.<?=$disk['idx']?>" class="narrow" value="<?=$disk['critical']??''?>" placeholder="<?=$display['critical']?>")>
 
 :info_critical_utilization_help:
 
@@ -500,7 +500,7 @@ _(Critical disk utilization threshold)_ (%):
   <?endif;?>
 </form>
 
-<?if (strpos($disk['fsType'],"btrfs")!==false):?>
+<?if (strpos($disk['fsType']??'',"btrfs")!==false):?>
 <div id="title" class="nocontrol"><span class="left"><i class="title fa fa-balance-scale"></i>_(Balance Status)_</span></div>
 <form markdown="1" method="POST" action="/update.php" target="progressFrame" onsubmit="prepareFS(this,'btrfs-balance-<?=$tag?>','/mnt/<?=$tag?>')">
 <?if ($disk['fsStatus']=="Mounted"):?>
@@ -571,54 +571,53 @@ _(btrfs balance status)_:
 _(Balance schedule)_:
 : <select name="mode" onchange="presetBTRFS(this.form,'#balance-hour')">
   <?for ($m=0; $m<count($mode); $m++):?>
-  <?=mk_option($$balance['mode'], strval($m), _($mode[$m]).($m<4 ? '': ' ('._('recommended').')'))?>
+  <?=mk_option($$balance['mode']??'', strval($m), _($mode[$m]).($m<4 ? '': ' ('._('recommended').')'))?>
   <?endfor;?>
   </select>
 
 _(Day of the week)_:
 : <select name="day">
   <?for ($d=0; $d<count($days); $d++):?>
-  <?=mk_option($$balance['day'], strval($d), _($days[$d]),0)?>
+  <?=mk_option($$balance['day']??'', strval($d), _($days[$d]),0)?>
   <?endfor;?>
-  <?=mk_option($$balance['day'], "*", "--------", _("disabled"))?>
+  <?=mk_option($$balance['day']??'', "*", "--------", _("disabled"))?>
   </select>
 
 _(Day of the month)_:
 : <select name="dotm">
   <?for ($d=1; $d<=31; $d++):?>
-  <?=mk_option($$balance['dotm'], strval($d), sprintf("%02d", $d))?>
+  <?=mk_option($$balance['dotm']??'', strval($d), sprintf("%02d", $d))?>
   <?endfor;?>
-  <?=mk_option($$balance['dotm'], "*", "--------", _("disabled"))?>
+  <?=mk_option($$balance['dotm']??'', "*", "--------", _("disabled"))?>
   </select>
 
 _(Time of the day)_:
 : <span id="balance-hour1" style="display:none"><select name="hour1" class="narrow">
   <?for ($d=0; $d<=23; $d++):?>
-  <?=mk_option($$balance['hour'], strval($d), sprintf("%02d", $d))?>
+  <?=mk_option($$balance['hour']??'', strval($d), sprintf("%02d", $d))?>
   <?endfor;?>
   </select>
   <select name="min" class="narrow">
   <?for ($d=0; $d<=55; $d+=5):?>
-  <?=mk_option($$balance['min'], strval($d), sprintf("%02d", $d))?>
+  <?=mk_option($$balance['min']??'', strval($d), sprintf("%02d", $d))?>
   <?endfor;?>
   </select>&nbsp;&nbsp;_(HH:MM)_</span>
 : <span id="balance-hour2" style="display:none"><select name="hour2">
-  <?=mk_option($$balance['hour'], "*/1", _("Every hour"))?>
-  <?=mk_option($$balance['hour'], "*/2", _("Every 2 hours"))?>
-  <?=mk_option($$balance['hour'], "*/3", _("Every 3 hours"))?>
-  <?=mk_option($$balance['hour'], "*/4", _("Every 4 hours"))?>
-  <?=mk_option($$balance['hour'], "*/6", _("Every 6 hours"))?>
-  <?=mk_option($$balance['hour'], "*/8", _("Every 8 hours"))?>
+  <?=mk_option($$balance['hour']??'', "*/1", _("Every hour"))?>
+  <?=mk_option($$balance['hour']??'', "*/2", _("Every 2 hours"))?>
+  <?=mk_option($$balance['hour']??'', "*/3", _("Every 3 hours"))?>
+  <?=mk_option($$balance['hour']??'', "*/4", _("Every 4 hours"))?>
+  <?=mk_option($$balance['hour']??'', "*/6", _("Every 6 hours"))?>
+  <?=mk_option($$balance['hour']??'', "*/8", _("Every 8 hours"))?>
   </select></span>
 
 _(Block group usage)_ (%):
-: <input type="number" name="usage" class="narrow" min="0" max="100" value="<?=$$balance['usage']?>" placeholder="50">
+: <input type="number" name="usage" class="narrow" min="0" max="100" value="<?=$$balance['usage']??''?>" placeholder="50">
 
 &nbsp;
 : <input type="submit" name="#apply" value="_(Apply)_"><input type="button" value="_(Done)_" onclick="done()">
 </form>
-<?endif;?>
-<?if (strpos($disk['fsType'],"btrfs")!==false):?>
+
 <div id="title" class="nocontrol"><span class="left"><i class="title fa fa-paint-brush"></i>_(Scrub Status)_</span></div>
 <form markdown="1" method="POST" action="/update.php" target="progressFrame" onsubmit="prepareFS(this,'btrfs-scrub-<?=$tag?>','/mnt/<?=$tag?>')">
 <?if ($disk['fsStatus']=="Mounted"):?>
@@ -667,51 +666,50 @@ _(btrfs scrub status)_:
 _(Scrub schedule)_:
 : <select name="mode" onchange="presetBTRFS(this.form,'#scrub-hour')">
   <?for ($m=0; $m<count($mode); $m++):?>
-  <?=mk_option($$scrub['mode'], strval($m), _($mode[$m]))?>
+  <?=mk_option($$scrub['mode']??'', strval($m), _($mode[$m]))?>
   <?endfor;?>
   </select>
 
 _(Day of the week)_:
 : <select name="day">
   <?for ($d=0; $d<count($days); $d++):?>
-  <?=mk_option($$scrub['day'], strval($d), _($days[$d]),0)?>
+  <?=mk_option($$scrub['day']??'', strval($d), _($days[$d]),0)?>
   <?endfor;?>
-  <?=mk_option($$scrub['day'], "*", "--------", _("disabled"))?>
+  <?=mk_option($$scrub['day']??'', "*", "--------", _("disabled"))?>
   </select>
 
 _(Day of the month)_:
 : <select name="dotm">
   <?for ($d=1; $d<=31; $d++):?>
-  <?=mk_option($$scrub['dotm'], strval($d), sprintf("%02d", $d))?>
+  <?=mk_option($$scrub['dotm']??'', strval($d), sprintf("%02d", $d))?>
   <?endfor;?>
-  <?=mk_option($scrub['dotm'], "*", "--------", _("disabled"))?>
+  <?=mk_option($$scrub['dotm']??'', "*", "--------", _("disabled"))?>
   </select>
 
 _(Time of the day)_:
 : <span id="scrub-hour1" style="display:none"><select name="hour1" class="narrow">
   <?for ($d=0; $d<=23; $d++):?>
-  <?=mk_option($$scrub['hour'], strval($d), sprintf("%02d", $d))?>
+  <?=mk_option($$scrub['hour']??'', strval($d), sprintf("%02d", $d))?>
   <?endfor;?>
   </select>
   <select name="min" class="narrow">
   <?for ($d=0; $d<=55; $d+=5):?>
-  <?=mk_option($$scrub['min'], strval($d), sprintf("%02d", $d))?>
+  <?=mk_option($$scrub['min']??'', strval($d), sprintf("%02d", $d))?>
   <?endfor;?>
   </select>&nbsp;&nbsp;_(HH:MM)_</span>
 : <span id="scrub-hour2" style="display:none"><select name="hour2">
-  <?=mk_option($$scrub['hour'], "*/1", _("Every hour"))?>
-  <?=mk_option($$scrub['hour'], "*/2", _("Every 2 hours"))?>
-  <?=mk_option($$scrub['hour'], "*/3", _("Every 3 hours"))?>
-  <?=mk_option($$scrub['hour'], "*/4", _("Every 4 hours"))?>
-  <?=mk_option($$scrub['hour'], "*/6", _("Every 6 hours"))?>
-  <?=mk_option($$scrub['hour'], "*/8", _("Every 8 hours"))?>
+  <?=mk_option($$scrub['hour']??'', "*/1", _("Every hour"))?>
+  <?=mk_option($$scrub['hour']??'', "*/2", _("Every 2 hours"))?>
+  <?=mk_option($$scrub['hour']??'', "*/3", _("Every 3 hours"))?>
+  <?=mk_option($$scrub['hour']??'', "*/4", _("Every 4 hours"))?>
+  <?=mk_option($$scrub['hour']??'', "*/6", _("Every 6 hours"))?>
+  <?=mk_option($$scrub['hour']??'', "*/8", _("Every 8 hours"))?>
   </select></span>
 
 &nbsp;
 : <input type="submit" name="#apply" value="_(Apply)_"><input type="button" value="_(Done)_" onclick="done()">
 </form>
-<?endif?>
-<?if (strpos($disk['fsType'],"btrfs")!==false):?>
+
 <div id="title" class="nocontrol"><span class="left"><i class="title fa fa-shield"></i>_(Check Filesystem Status)_</span></div>
 <form markdown="1" method="POST" action="/update.php" target="progressFrame" onsubmit="prepareFS(this,'btrfs-check-<?=$tag?>','/dev/<?=$disk['deviceSb']?> <?=$id?>')">
 <?if (maintenance_mode()):?>
@@ -757,7 +755,7 @@ _(btrfs check status)_:
 <?endif;?>
 </form>
 <?endif;?>
-<?if (strpos($disk['fsType'],"reiserfs")!==false):?>
+<?if (strpos($disk['fsType']??'',"reiserfs")!==false):?>
 <div id="title" class="nocontrol"><span class="left"><i class="title fa fa-shield"></i>_(Check Filesystem Status)_</span></div>
 <form markdown="1" method="POST" action="/update.php" target="progressFrame" onsubmit="prepareFS(this,'rfs-check-<?=$tag?>','/dev/<?=$disk['deviceSb']?> <?=$id?>')">
 <?if (maintenance_mode()):?>
@@ -797,7 +795,7 @@ _(reiserfsck status)_:
 <?endif;?>
 </form>
 <?endif;?>
-<?if (strpos($disk['fsType'],"xfs")!==false):?>
+<?if (strpos($disk['fsType']??'',"xfs")!==false):?>
 <div id="title" class="nocontrol"><span class="left"><i class="title fa fa-shield"></i>_(Check Filesystem Status)_</span></div>
 <form markdown="1" method="POST" action="/update.php" target="progressFrame" onsubmit="prepareFS(this,'xfs-check-<?=$tag?>','/dev/<?=$disk['deviceSb']?> <?=$id?>')">
 <?if (maintenance_mode()):?>
@@ -846,69 +844,69 @@ _(xfs_repair status)_:
 <input type="hidden" name="#section" value="<?=$id?>">
 <input type="hidden" name="#cleanup" value="true">
 <input type="hidden" name="smEvents" value="">
-<input type="hidden" name="smGlue"   value="<?=$var['smGlue']?>">
+<input type="hidden" name="smGlue"   value="<?=$var['smGlue']??''?>">
 _(Warning disk temperature threshold)_ (&deg;<?=$display['unit']?>):
-: <input type="number" min="0" max="300" name="hotTemp" class="narrow" value="<?=strlen($disk['hotTemp'])?displayTemp($disk['hotTemp']):''?>" placeholder="<?=displayTemp($display['hot'])?>">
+: <input type="number" min="0" max="300" name="hotTemp" class="narrow" value="<?=displayTemp($disk['hotTemp']??'')?>" placeholder="<?=displayTemp($display['hot'])?>">
 
 :info_warning_temp_help:
 
 _(Critical disk temperature threshold)_ (&deg;<?=$display['unit']?>):
-: <input type="number" min="0" max="300" name="maxTemp" class="narrow" value="<?=strlen($disk['maxTemp'])?displayTemp($disk['maxTemp']):''?>" placeholder="<?=displayTemp($display['max'])?>">
+: <input type="number" min="0" max="300" name="maxTemp" class="narrow" value="<?=displayTemp($disk['maxTemp']??'')?>" placeholder="<?=displayTemp($display['max'])?>">
 
 :info_critical_temp_help:
 
 _(SMART notification value)_:
 : <select name="smSelect">
-  <?=mk_option($disk['smSelect'], "-1", _('Use default'))?>
-  <?=mk_option($disk['smSelect'], "0", _('Raw'))?>
-  <?=mk_option($disk['smSelect'], "1", _('Normalized'))?>
+  <?=mk_option($disk['smSelect']??'', "-1", _('Use default'))?>
+  <?=mk_option($disk['smSelect']??'', "0", _('Raw'))?>
+  <?=mk_option($disk['smSelect']??'', "1", _('Normalized'))?>
   </select>
 
 :info_smart_notifications_help:
 
 _(SMART notification tolerance level)_:
 : <select name="smLevel">
-  <?=mk_option($disk['smLevel'], "-1", _('Use default'))?>
-  <?=mk_option($disk['smLevel'], "1.00", _('Absolute'))?>
-  <?=mk_option($disk['smLevel'], "1.05", "5%")?>
-  <?=mk_option($disk['smLevel'], "1.10", "10%")?>
-  <?=mk_option($disk['smLevel'], "1.15", "15%")?>
-  <?=mk_option($disk['smLevel'], "1.20", "20%")?>
-  <?=mk_option($disk['smLevel'], "1.25", "25%")?>
-  <?=mk_option($disk['smLevel'], "1.50", "50%")?>
+  <?=mk_option($disk['smLevel']??'', "-1", _('Use default'))?>
+  <?=mk_option($disk['smLevel']??'', "1.00", _('Absolute'))?>
+  <?=mk_option($disk['smLevel']??'', "1.05", "5%")?>
+  <?=mk_option($disk['smLevel']??'', "1.10", "10%")?>
+  <?=mk_option($disk['smLevel']??'', "1.15", "15%")?>
+  <?=mk_option($disk['smLevel']??'', "1.20", "20%")?>
+  <?=mk_option($disk['smLevel']??'', "1.25", "25%")?>
+  <?=mk_option($disk['smLevel']??'', "1.50", "50%")?>
   </select>
 
 :info_tolerance_level_help:
 
 _(SMART controller type)_:
 : <select name="smType" onchange="setGlue(this.form,true)">
-  <?=mk_option($disk['smType'], "-1", _('Use default'))?>
-  <?=mk_option($disk['smType'], " ", _('Automatic'))?>
-  <?=mk_option($disk['smType'], "-d ata", "ATA")?>
-  <?=mk_option($disk['smType'], "-d nvme", "NVMe")?>
-  <?=mk_option($disk['smType'], "-d sat", "SAT")?>
-  <?=mk_option($disk['smType'], "-d scsi", "SCSI")?>
-  <?=mk_option($disk['smType'], "-d 3ware", "3Ware")?>
-  <?=mk_option($disk['smType'], "-d aacraid", "Adaptec")?>
-  <?=mk_option($disk['smType'], "-d areca", "Areca")?>
-  <?=mk_option($disk['smType'], "-d hpt", "HighPoint")?>
-  <?=mk_option($disk['smType'], "-d cciss", "HP cciss")?>
-  <?=mk_option($disk['smType'], "-d marvell", "Marvell")?>
-  <?=mk_option($disk['smType'], "-d megaraid", "MegaRAID")?>
+  <?=mk_option($disk['smType']??'', "-1", _('Use default'))?>
+  <?=mk_option($disk['smType']??'', " ", _('Automatic'))?>
+  <?=mk_option($disk['smType']??'', "-d ata", "ATA")?>
+  <?=mk_option($disk['smType']??'', "-d nvme", "NVMe")?>
+  <?=mk_option($disk['smType']??'', "-d sat", "SAT")?>
+  <?=mk_option($disk['smType']??'', "-d scsi", "SCSI")?>
+  <?=mk_option($disk['smType']??'', "-d 3ware", "3Ware")?>
+  <?=mk_option($disk['smType']??'', "-d aacraid", "Adaptec")?>
+  <?=mk_option($disk['smType']??'', "-d areca", "Areca")?>
+  <?=mk_option($disk['smType']??'', "-d hpt", "HighPoint")?>
+  <?=mk_option($disk['smType']??'', "-d cciss", "HP cciss")?>
+  <?=mk_option($disk['smType']??'', "-d marvell", "Marvell")?>
+  <?=mk_option($disk['smType']??'', "-d megaraid", "MegaRAID")?>
   </select>
-  <input type="text" name="smPort1" value="<?=$disk['smPort1']?>" class="option"><select name="smPort1" class="narrow option" disabled></select>
-  <input type="text" name="smPort2" value="<?=$disk['smPort2']?>" class="option"><select name="smPort2" class="narrow option" disabled></select>
-  <input type="text" name="smPort3" value="<?=$disk['smPort3']?>" class="option"><select name="smPort3" class="narrow option" disabled></select><span id="devtext">/dev/</span>
-  <input type="text" name="smDevice" value="<?=$disk['smDevice']?>" class="option" placeholder="<?=$dev?>"><span id="helptext">_(enter disk index and device name as applicable to your controller)_</span>
+  <input type="text" name="smPort1" value="<?=$disk['smPort1']??''?>" class="option"><select name="smPort1" class="narrow option" disabled></select>
+  <input type="text" name="smPort2" value="<?=$disk['smPort2']??''?>" class="option"><select name="smPort2" class="narrow option" disabled></select>
+  <input type="text" name="smPort3" value="<?=$disk['smPort3']??''?>" class="option"><select name="smPort3" class="narrow option" disabled></select><span id="devtext">/dev/</span>
+  <input type="text" name="smDevice" value="<?=$disk['smDevice']??''?>" class="option" placeholder="<?=$dev?>"><span id="helptext">_(enter disk index and device name as applicable to your controller)_</span>
 
 :info_controller_type_help:
 
 _(SMART attribute notifications)_:
-: <input type="text" name="smCustom" value="<?=$disk['smCustom']??$var['smCustom']?>" class="narrow">_(Custom attributes (use comma to separate numbers))_
+: <input type="text" name="smCustom" value="<?=$disk['smCustom']??$var['smCustom']??''?>" class="narrow">_(Custom attributes (use comma to separate numbers))_
 
 <?for ($x=0; $x < count($preselect); $x++):?>
 &nbsp;
-: <input type="checkbox" name="at<?=$x?>" value="<?=$preselect[$x]['code']?>"<?=in_array($preselect[$x]['code'],$events)?' checked':''?>><span class="code">_(Attribute)_ = <?=$preselect[$x]['code']?></span><?=$preselect[$x]['text']?>
+: <input type="checkbox" name="at<?=$x?>" value="<?=$preselect[$x]['code']??''?>"<?=in_array($preselect[$x]['code']??'',$events)?' checked':''?>><span class="code">_(Attribute)_ = <?=$preselect[$x]['code']?></span><?=$preselect[$x]['text']?>
 <?endfor;?>
 
 :info_attribute_notifications_help:
@@ -937,7 +935,7 @@ _(Name)_:
 <input type='hidden' name='csrf_token' value='<?=$var['csrf_token']?>'>
 </form>
 
-<?if (strpos($disk['fsType'],"btrfs")!==false):?>
+<?if (strpos($disk['fsType']??'',"btrfs")!==false):?>
 <script>
 $(function(){
   presetBTRFS(document.balance_schedule,'#balance-hour');

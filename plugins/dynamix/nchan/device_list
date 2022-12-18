@@ -139,7 +139,7 @@ function fs_info(&$disk) {
   if (empty($disk['fsStatus']) || $disk['fsStatus']=='-') {
     return ($disk['type']=='Cache' && !in_array($disk['name'],$pools)) ? "<td colspan='4'>"._('Device is part of a pool')."</td><td></td>" : "<td colspan='5'></td>";
   } elseif ($disk['fsStatus']=='Mounted') {
-    $echo[] = "<td>".vfs_type($disk['fsType'])."</td>";
+    $echo[] = "<td>".vfs_type($disk['fsType']??'')."</td>";
     $echo[] = "<td>".my_scale(($disk['fsSize']??0)*1024,$unit,-1)." $unit</td>";
     if ($display['text']%10==0) {
       $echo[] = "<td>".my_scale($disk['fsUsed']*1024,$unit)." $unit</td>";
@@ -155,7 +155,7 @@ function fs_info(&$disk) {
     }
     $echo[] = "<td>".device_browse($disk)."</td>";
   } else {
-    $echo[] = "<td>".vfs_type($disk['fsType'])."</td><td colspan='4' style='text-align:center'>"._($disk['fsStatus'])."</td>";
+    $echo[] = "<td>".vfs_type($disk['fsType']??'')."</td><td colspan='4' style='text-align:center'>"._($disk['fsStatus'])."</td>";
   }
   return implode($echo);
 }
@@ -389,7 +389,7 @@ while (true) {
   $echo[0] = "array_devices\n";
   $parity = parity_filter($disks);
   $data = data_filter($disks);
-  foreach ($data as $disk) $crypto |= $disk['luksState']!=0 || vfs_luks($disk['fsType']);
+  foreach ($data as $disk) $crypto |= $disk['luksState']!=0 || vfs_luks($disk['fsType']??'');
   if ($var['fsState']=='Stopped') {
     foreach ($parity as $disk) $echo[0] .= array_offline($disk);
     $echo[0] .= "<tr class='tr_last'><td style='height:12px' colspan='11'></td></tr>";
@@ -421,7 +421,7 @@ while (true) {
   $cache  = cache_filter($disks); $n = 2;
   foreach ($pools as $pool) {
     $echo[$n] = "pool_device".($n-2)."\n";
-    foreach ($cache as $disk) if (prefix($disk['name'])==$pool) $crypto |= $disk['luksState']!=0 || vfs_luks($disk['fsType']);
+    foreach ($cache as $disk) if (prefix($disk['name'])==$pool) $crypto |= $disk['luksState']!=0 || vfs_luks($disk['fsType']??'');
     if ($var['fsState']=='Stopped') {
       $log = file_exists($pool_log) ? parse_ini_file($pool_log) : [];
       $off = false;

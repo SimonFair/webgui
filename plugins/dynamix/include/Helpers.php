@@ -45,7 +45,7 @@ function my_number($value) {
 function my_time($time, $fmt=NULL) {
   global $display;
   if (!$fmt) $fmt = $display['date'].($display['date']!='%c' ? ", {$display['time']}" : "");
-  return $time ? strftime($fmt, $time) : _('unknown');
+  return $time ? my_date($fmt, $time) : _('unknown');
 }
 function my_temp($value) {
   global $display;

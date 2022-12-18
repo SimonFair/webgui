@@ -152,7 +152,7 @@ foreach ($images as $image) {
   echo "<tr class='advanced'><td style='width:220px;padding:8px'>";
   echo "<span class='outer apps'><span id='$id' $menu class='hand'><img src='/webGui/images/disk.png' class='img'></span><span class='inner'>("._('orphan image').")<br><i class='fa fa-square stopped grey-text'></i><span class='state'>"._('stopped')."</span></span></span>";
   echo "</td><td colspan='6'>"._('Image ID').": $id<br>";
-  echo implode(', ',array_map('htmlspecialchars',$image['Tags']));
+  echo implode(', ',$image['Tags']);
   echo "</td><td>"._('Created')." ".htmlspecialchars(_($image['Created'],0))."</td></tr>";
 }
 echo "\0".implode($docker)."\0".(pgrep('rc.docker')!==false ? 1:0);

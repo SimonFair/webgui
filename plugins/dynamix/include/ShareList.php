@@ -32,7 +32,8 @@ $display['scale'] = unscript($_GET['scale']??'');
 $display['number'] = unscript($_GET['number']??'');
 $display['raw'] = unscript($_GET['raw']??'');
 
-$pools = implode(',',pools_filter(cache_filter($disks)));
+$pools_check	= pools_filter(cache_filter($disks));
+$pools			= implode(',', $pools_check);
 
 if (!$shares) {
   echo "<tr><td colspan='8' style='text-align:center;padding-top:12px'><i class='fa fa-folder-open-o icon'></i>"._('There are no exportable user shares')."</td></tr>";
@@ -96,6 +97,12 @@ foreach ($shares as $name => $share) {
   echo "<td>".user_share_settings($var['shareSMBEnabled'], $sec[$name])."</td>";
   echo "<td>".user_share_settings($var['shareNFSEnabled'], $sec_nfs[$name])."</td>";
   $cmd="/webGui/scripts/share_size"."&arg1=".urlencode($name)."&arg2=ssz1&arg3=".urlencode($pools);
+  /* Check for non existent pool device. */
+  if ($share['cachePool']) {
+    if (! in_array($share['cachePool'], $pools_check)) {
+      $share['useCache'] = "no";
+    }
+  }
   $cache = _(ucfirst($share['useCache'])).($share['useCache']!='no'?' : '.compress(my_disk($share['cachePool'],$display['raw'])):'');
   if (array_key_exists($name, $ssz1)) {
     echo "<td>$cache</td>";

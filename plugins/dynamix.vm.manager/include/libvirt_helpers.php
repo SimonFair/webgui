@@ -991,6 +991,7 @@
 		$arrNICs = $lv->get_nic_info($res);
 		$arrHostDevs = $lv->domain_get_host_devices_pci($res);
 		$arrUSBDevs = $lv->domain_get_host_devices_usb($res);
+		$getcopypaste=getcopypaste($res) ;
 
 		// Metadata Parsing
 		// libvirt xpath parser sucks, use php's xpath parser instead
@@ -1028,6 +1029,7 @@
 				'port' => $vmrcport,
 				'wsport' => $lv->domain_get_ws_port($res),
 				'autoport' => $autoport,
+				'copypaste' => $getcopypaste,
 			];
 		}
 
@@ -1046,7 +1048,7 @@
 
 			$arrFoundOtherDevices = array_filter($arrValidOtherDevices, function($arrDev) use ($arrHostDev) {return ($arrDev['id'] == $arrHostDev['id']);});
 			if (!empty($arrFoundOtherDevices)) {
-				$arrOtherDevices[] = ['id' => $arrHostDev['id']];
+				$arrOtherDevices[] = ['id' => $arrHostDev['id'],'boot' => $arrHostDev['boot']];
 				continue;
 			}
 		}
@@ -1082,6 +1084,7 @@
 				'dev' => $disk['device'],
 				'bus' => $disk['bus'],
 				'boot' => $disk['boot order'],
+				'serial' => $disk['serial'],
 				'select' => $default_option
 			];
 		}
@@ -1119,6 +1122,8 @@
 		  }
   	}
 
+		if ($lv->domain_get_boot_devices($res)[0] == "fd") $osbootdev = "Yes" ; else $osbootdev = "No" ;
+
 		return [
 			'template' => $arrTemplateValues,
 			'domain' => [
@@ -1139,6 +1144,7 @@
 				'autostart' => ($lv->domain_get_autostart($res) ? 1 : 0),
 				'state' => $lv->domain_state_translate($dom['state']),
 				'ovmf' => $strOVMF,
+				'usbboot' => $osbootdev,
 				'usbmode' => $strUSBMode
 			],
 			'media' => [
@@ -1203,7 +1209,7 @@
 			foreach ($old['devices']['disk'] as $k => $d) if ($source==$d['source']['@attributes']['file']) $new['devices']['disk'][$key]['driver']['@attributes'] = $d['driver']['@attributes'];
 		}
 		// settings not in the GUI, but maybe customized
-		unset($new['memoryBacking'], $new['clock'], $new['features']);
+		unset($new['memoryBacking'], $new['clock']); 
 		// preserve vnc/spice port settings
 		// unset($new['devices']['graphics']['@attributes']['port'],$new['devices']['graphics']['@attributes']['autoport']);
 		if (!$new['devices']['graphics']) unset($old['devices']['graphics']);
@@ -1214,6 +1220,9 @@
 		if (!$new['devices']['tpm']) unset($old['devices']['tpm']);
 		// remove existing auto-generated settings
 		unset($old['cputune']['vcpupin'],$old['devices']['video'],$old['devices']['disk'],$old['devices']['interface'],$old['devices']['filesystem'],$old['cpu']['@attributes'],$old['os']['boot'],$old['os']['loader'],$old['os']['nvram']);
+		// Remove old CPU cache and features
+		unset($old['cpu']['cache'], $old['cpu']['feature']) ;
+		unset($old['features']['hyperv'],$old['devices']['channel']) ;
 		// set namespace
 		$new['metadata']['vmtemplate']['@attributes']['xmlns'] = 'unraid';
 	}
@@ -1226,22 +1235,25 @@
 					'id' => $data['id'],
 					'name' => $data["name"],
 					'checked' => '',
-					'startupPolicy' => ''
+					'startupPolicy' => '',
+					'usbboot' => '' 
 					];
 		}
 		if ($strXML !="") { 
 			$VMxml = new SimpleXMLElement($strXML);
-			$VMUSB=$VMxml->xpath('//devices/hostdev[@type="usb"]/source') ;
+			$VMUSB=$VMxml->xpath('//devices/hostdev[@type="usb"]') ;
 			foreach($VMUSB as $USB){
-				$vendor=$USB->vendor->attributes()->id ;
-				$product=$USB->product->attributes()->id ;
-				$startupPolicy=$USB->attributes()->startupPolicy ;
+				$vendor=$USB->source->vendor->attributes()->id ;
+				$product=$USB->source->product->attributes()->id ;
+				$startupPolicy=$USB->source->attributes()->startupPolicy ;
+				$usbboot= $USB->boot->attributes()->order  ;
 				$id = str_replace('0x', '', $vendor . ':' . $product) ;
 				$found = false ;
 				foreach($arrValidUSBDevices as $key => $data) {
 					if ($data['id'] == $id) {
 						$array[$key]['checked'] = "checked" ;
 						$array[$key]['startupPolicy'] = $startupPolicy ;
+						$array[$key]['usbboot'] = $usbboot ;
 						$found = true ;
 						break ;
 					}
@@ -1251,11 +1263,63 @@
 						'id' => $id,
 						'name' => _("USB device is missing"),
 						'checked' => 'checked',
-						'startupPolicy' => $startupPolicy
+						'startupPolicy' => $startupPolicy,
+						'usbboot' => $usbboot 
 						];
 				}
 			}
 		}	
 		return $array ;
 	} 
+
+	function sharesOnly($disk) {
+		return strpos('Data,Cache',$disk['type'])!==false && $disk['exportable']=='yes';
+	  }
+
+	function getUnraidShares(){
+		$shares  = parse_ini_file('state/shares.ini',true);
+		uksort($shares,'strnatcasecmp');
+		$arrreturn[] = "Manual" ;
+		foreach ($shares as $share) {
+			$arrreturn[] = "User:".$share["name"] ;
+		}
+		$disks   = parse_ini_file('state/disks.ini',true);
+		$disks = array_filter($disks,'sharesOnly');
+
+		foreach ($disks as $name => $disk) {
+			$arrreturn[] = "Disk:".$name ;
+		}
+		return $arrreturn ;
+	}
+
+	function getgastate($res) {
+        global $lv ;
+        $xml = new SimpleXMLElement($lv->domain_get_xml($res)) ;
+        $data = $xml->xpath('//channel/target[@name="org.qemu.guest_agent.0"]/@state') ;
+        $data = $data[0]->state ;
+        return $data ;
+	}
+
+	function getchannels($res) {
+		global $lv ;
+        $xml = $lv->domain_get_xml($res) ;
+		$x = strpos($xml,"<channel", 0) ;
+		$y = strpos($xml,"</channel>", 0)  ;
+		$z=$y ;
+		while ($y!=false) {
+			$y = strpos($xml,"</channel>", $z +10)  ;
+			if ($y != false) $z =$y  ;
+		}
+		$channels = substr($xml,$x, ($z + 10) -$x) ;
+		return $channels ;
+	}
+
+	function getcopypaste($res) {
+		$channels = getchannels($res) ;
+		$spicevmc = $qemuvdaagent = $copypaste = false ;
+		if (strpos($channels,"spicevmc",0)) $spicevmc = true ;
+		if (strpos($channels,"qemu-vdagent",0)) $qemuvdaagent = true ;
+		if ($spicevmc || $qemuvdaagent) $copypaste = true ; else $copypaste = false ;
+		return $copypaste ;
+	}
 ?>

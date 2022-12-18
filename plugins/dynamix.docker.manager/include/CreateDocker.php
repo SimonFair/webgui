@@ -827,7 +827,7 @@ _(Read Me First)_:
 
 </div>
 <div markdown="1" class="advanced">
-_(Docker Hub URL)_:
+_(Registry URL)_:
 : <input type="text" name="contRegistry"></td>
 
 :docker_client_hub_url_help:

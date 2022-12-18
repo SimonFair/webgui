@@ -67,12 +67,18 @@
             var auto = urlParams.get('autoconnect') ;
             var host = urlParams.get("host") ;
             var port = urlParams.get("port") ;
+            var vmname = urlParams.get("vmname") ;
             var password = urlParams.get("password") ;
-               
+            
+            if (vmname == null) {
+                vmname = host ;
+            } else {
+                vmname = vmname + ' on host:' + host ;
+            }
             document.getElementById("host").value = host ;
             document.getElementById("port").value = port;
             document.getElementById("password").value = password;
-            document.getElementById('hostname').innerHTML = (host) ;
+            document.getElementById('hostname').innerHTML = (vmname) ;
 
             if (auto === 'true' || auto == '1') {
             auto = true;
@@ -109,7 +115,7 @@
                     sc.stop();
                 }
 
-                uri = scheme + host + ":" + port;
+                uri = scheme + host + port;
 
                 document.getElementById('connectButton').innerHTML = "Stop Connection";
                 document.getElementById('connectButton').onclick = disconnect;

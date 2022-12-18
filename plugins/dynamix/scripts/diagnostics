@@ -45,18 +45,18 @@ function run($cmd, &$save=null) {
   return implode("\n",$save);
 }
 function shareDisks($share) {
-  return exec("shopt -s dotglob; getfattr --no-dereference --absolute-names --only-values -n system.LOCATIONS ".escapeshellarg("/usr/local/emhttp/mnt/user/$share")." 2>/dev/null") ?: "";
+  return str_replace(',',', ',exec("shopt -s dotglob; getfattr --no-dereference --absolute-names --only-values -n system.LOCATIONS ".escapeshellarg("/mnt/user/$share")." 2>/dev/null") ?: "");
 }
 function anonymize($text,$select) {
-  global $all, $customShares,$unraid_vars;
+  global $all,$pools,$customShares,$unraid_vars;
   if ($all) return $text;
   switch ($select) {
   case 1:
     // remove any stray references to the GUID that may wind up in .ini files (notably Unassigned Devices)
     $text = str_replace(end(explode("-",$unraid_vars['regGUID'])),"...",$text);
-
     $rows = explode("\n", $text);
-    $regex = "/\b((disk|cache|parity|cpu|eth|dev)[0-9]+)|(smart|flash|flashbackup|cache|parity|cpu$customShares)\b/";
+    $pool = implode('|',$pools) ?: 'cache';
+    $regex = "/\b((disk|$pool|parity|cpu|eth|dev)[0-9]+)|(smart|flash|flashbackup|$pool|parity|cpu{$customShares})\b/";
     foreach ($rows as &$row) {
       if (!preg_match($regex, $row)) {
         $row = preg_replace("/^(\s*\[\S).*(\S\])( => Array)$/","$1..$2$3",$row);
@@ -65,8 +65,9 @@ function anonymize($text,$select) {
     }
     return implode("\n", $rows);
   case 2:
+    // anonymize share configuration name - make it unique
     $name = basename($text,'.cfg');
-    if ($name !== "cache") {
+    if (!in_array($name,$pools)) {
       $len = strlen($name);
       if ($len>2) {
         $dash = str_repeat('-',$len-2);
@@ -265,8 +266,7 @@ function geturls() {
     $dirlisting[1] = "Directory not found";
   }
   $urls .= "\n\n".implode("\n", $dirlisting)."\n";
-  $urls = str_replace("\n", "\r\n", $urls);
-  return $urls;
+  return str_replace("\n", "\r\n", $urls);
 }
 
 // diagnostics start
@@ -286,21 +286,24 @@ if ($cli) {
   $date = "{$split[2]}-{$split[3]}";
 }
 
+// global variables
+$disks = (array)@parse_ini_file("$get/disks.ini",true);
+$pools = pools_filter($disks);
+
 // don't anonymize system share names
-$vardomain    = (array)@parse_ini_file('/boot/config/domain.cfg');
-$vardocker    = (array)@parse_ini_file('/boot/config/docker.cfg');
-$showshares   = [];
-$showshares[] = current(array_slice(explode('/',$vardomain['IMAGE_FILE']), 3, 1)).'.cfg';
-$showshares[] = current(array_slice(explode('/',$vardomain['DOMAINDIR']), 3, 1)).'.cfg';
-$showshares[] = current(array_slice(explode('/',$vardomain['MEDIADIR']), 3, 1)).'.cfg';
-$showshares[] = current(array_slice(explode('/',$vardomain['DISKDIR']), 3, 1)).'.cfg';
-$showshares[] = current(array_slice(explode('/',$vardocker['DOCKER_IMAGE_FILE']), 3, 1)).'.cfg';
-$showshares[] = current(array_slice(explode('/',$vardocker['DOCKER_APP_CONFIG_PATH']), 3, 1)).'.cfg';
-$showshares[] = current(array_slice(explode('/',$vardocker['DOCKER_HOME']), 3, 1)).'.cfg';
-foreach ($showshares as $show) {
-  $showme = str_replace(".cfg","",$show);
-  if ($showme) $customShares .= "|$showme";
-}
+$vardomain = (array)@parse_ini_file('/boot/config/domain.cfg');
+$vardocker = (array)@parse_ini_file('/boot/config/docker.cfg');
+$showshares = [];
+$customShares = '';
+$showshares[] = current(array_slice(explode('/',$vardomain['IMAGE_FILE']),3,1));
+$showshares[] = current(array_slice(explode('/',$vardomain['DOMAINDIR']),3,1));
+$showshares[] = current(array_slice(explode('/',$vardomain['MEDIADIR']),3,1));
+$showshares[] = current(array_slice(explode('/',$vardomain['DISKDIR']),3,1));
+$showshares[] = current(array_slice(explode('/',$vardocker['DOCKER_IMAGE_FILE']),3,1));
+$showshares[] = current(array_slice(explode('/',$vardocker['DOCKER_APP_CONFIG_PATH']),3,1));
+$showshares[] = current(array_slice(explode('/',$vardocker['DOCKER_HOME']),3,1));
+
+foreach ($showshares as $showme) if ($showme) $customShares .= "|$showme";
 
 // create folder structure
 run("mkdir -p ".escapeshellarg("/$diag/system")." ".escapeshellarg("/$diag/config")." ".escapeshellarg("/$diag/logs")." ".escapeshellarg("/$diag/shares")." ".escapeshellarg("/$diag/smart")." ".escapeshellarg("/$diag/qemu")." ".escapeshellarg("/$diag/xml"));
@@ -326,7 +329,6 @@ foreach (glob("$get/*.ini") as $file) {
 // Create loads.txt
 $cpuload = run("uptime")."  Cores: ".run("nproc")."\r\n".(string)@file_get_contents("$get/cpuload.ini")."\r\n";
 $diskload = (array)@file("$get/diskload.ini");
-$disks = (array)@parse_ini_file("$get/disks.ini",true);
 $loadTxt = [];
 foreach ($diskload as $loadLine) {
   $load = explode('=',$loadLine);
@@ -377,6 +379,8 @@ foreach ($folders as $folder) {
 // copy configuration files (suppress errors)
 run("cp /boot/config/*.{cfg,conf,dat} ".escapeshellarg("/$diag/config")." 2>/dev/null");
 run("cp /boot/config/go ".escapeshellarg("/$diag/config/go.txt")." 2>/dev/null");
+
+// anonymize go file
 if (!$all)
   run("sed -i -e '/password/c ***line removed***' -e '/user/c ***line removed***' -e '/pass/c ***line removed***' ".escapeshellarg("/$diag/config/go.txt"));
 
@@ -386,40 +390,31 @@ if (!$all)
 
 // copy share information (anonymize if applicable)
 $files = glob("/boot/config/shares/*.cfg");
+$shareDisk = [];
 foreach ($files as $file) {
   $dest = "/$diag/shares/".basename($file);
-  if (!in_array(basename($file),$showshares)) {
-    $dest = anonymize($dest,2);
-  }
+  $share = basename($file,'.cfg');
+  if (!in_array($share,$showshares)) $dest = anonymize($dest,2);
   @copy($file, $dest);
   if (!$all) run("sed -ri 's/^(share(Comment|ReadList|WriteList)=\")[^\"]+/\\1.../' ".escapeshellarg($dest)." 2>/dev/null");
-  $share = pathinfo(basename($file),PATHINFO_FILENAME);
-  $shareExists = explode(",",shareDisks($share));
-  unset($exists);
-  foreach ($shareExists as $anon) {
-    if (!$all) {
-      if (!preg_match("/\b((disk)[0-9]+)|(cache)\b/", $anon)) {
-        $len = strlen($anon);
-        if ($len>2) {
-          $dash = str_repeat('-',$len-2);
-          $exists[] = substr($anon,0,1).$dash.substr($anon,-1);
-        }
-      }
-    } else {
-      $exists[] = $anon;
-    }
-  }
-  $shareDisk .= $exists ? str_pad(pathinfo($dest,PATHINFO_FILENAME),34).str_pad(exec("cat ".escapeshellarg($file)." | grep shareUseCache"),22)."  Exists on ".implode(", ",$exists)."\r\n" : "";
-  $exists = $exists ?: ["no drives"];
-  file_put_contents($dest,"# Share exists on ".implode(", ",$exists)."\r\n",FILE_APPEND);
+  $home = shareDisks($share);
+  $home = $home ? "# Share exists on $home\r\n" : "# Share does not exist\r\n";
+  $shareDisk[] = str_pad(basename($dest,'.cfg'),34).str_pad(exec("grep -m1 'shareUseCache' ".escapeshellarg($file)),24).$home;
+  file_put_contents($dest,$home.file_get_contents($dest));
 }
-file_put_contents("/$diag/shares/shareDisks.txt",$shareDisk);
+file_put_contents("/$diag/shares/shareDisks.txt",implode($shareDisk));
 
 // create default user shares information
 $shares = (array)@parse_ini_file("$get/shares.ini", true);
 foreach ($shares as $share) {
   $name = $share['name'];
-  if (!in_array("/boot/config/shares/$name.cfg",$files)) file_put_contents(anonymize("/$diag/shares/$name.cfg",2),"# This share has default settings.\r\n# Share exists on ".shareDisks($name)."\r\n");
+  if (!in_array("/boot/config/shares/$name.cfg",$files)) {
+    $home = shareDisks($name);
+    $home = $home ? "# Share exists on $home\r\n" : "# Share does not exist\r\n";
+    $file = anonymize("/$diag/shares/$name.cfg",2);
+    file_put_contents($file,"# This share has default settings.\r\n".$home);
+    file_put_contents("/$diag/shares/shareDisks.txt",str_pad(basename($file,'.cfg'),34).str_pad('shareUseCache="no"',24).$home,FILE_APPEND);
+  }
 }
 
 // copy pools information (anonymize)
@@ -475,7 +470,7 @@ foreach ($devices as $device) {
 }
 
 // create pool btrfs information
-foreach (pools_filter($disks) as $pool) {
+foreach ($pools as $pool) {
   if (strpos($disks[$pool]['fsType'],'btrfs')!==false) {
     run("echo 'Pool: $pool'|todos >>".escapeshellarg("/$diag/system/btrfs-usage.txt"));
     run("/sbin/btrfs filesystem usage -T /mnt/$pool 2>/dev/null|todos >>".escapeshellarg("/$diag/system/btrfs-usage.txt"));

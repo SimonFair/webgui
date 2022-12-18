@@ -76,7 +76,7 @@ foreach ($vms as $vm) {
     $wsport = $lv->domain_get_ws_port($res);
     $vmrcprotocol = $lv->domain_get_vmrc_protocol($res) ;
     $vmrcurl = autov('/plugins/dynamix.vm.manager/'.$vmrcprotocol.'.html',true).'&autoconnect=true&host=' . $_SERVER['HTTP_HOST'] ;
-    if ($vmrcprotocol == "spice") $vmrcurl .= '&port=/wsproxy/' . $vmrcport . '/'; else $vmrcurl .= '&port=&path=/wsproxy/' . $wsport . '/';
+    if ($vmrcprotocol == "spice") $vmrcurl .= '&vmname='. urlencode($vm) .'&port=/wsproxy/' . $vmrcport . '/' ; else $vmrcurl .= '&port=&path=/wsproxy/' . $wsport . '/';
     $graphics = strtoupper($vmrcprotocol).":".$vmrcport;
   } elseif ($vmrcport == -1 || $autoport) {
     $vmrcprotocol = $lv->domain_get_vmrc_protocol($res) ;
@@ -89,8 +89,10 @@ foreach ($vms as $vm) {
         if ($arrGPU['id'] == $arrDev['id']) {
           if (count(array_filter($arrValidGPUDevices, function($v) use ($arrDev) { return $v['name'] == $arrDev['name']; })) > 1) {
             $graphics .= $arrDev['name'].' ('.$arrDev['id'].')'."\n";
+            $vmrcprotocol = "VGA" ;
           } else {
             $graphics .= $arrDev['name']."\n";
+            $vmrcprotocol = "VGA" ;
           }
         }
       }
@@ -133,7 +135,7 @@ foreach ($vms as $vm) {
   echo "<tr child-id='$i' id='name-$i".(in_array('name-'.$i++,$show) ? "'>" : "' style='display:none'>");
   echo "<td colspan='8' style='margin:0;padding:0'>";
   echo "<table class='tablesorter domdisk' id='domdisk_table'>";
-  echo "<thead><tr><th><i class='fa fa-hdd-o'></i> <b>"._('Disk devices')."</b></th><th>"._('Bus')."</th><th>"._('Capacity')."</th><th>"._('Allocation')."</th><th>Boot Order</th</tr></thead>";
+  echo "<thead><tr><th><i class='fa fa-hdd-o'></i> <b>"._('Disk devices')."</b></th><th>"._('Serial')."</b></th><th>"._('Bus')."</th><th>"._('Capacity')."</th><th>"._('Allocation')."</th><th>Boot Order</th</tr></thead>";
   echo "<tbody id='domdisk_list'>";
 
   /* Display VM disks */
@@ -144,8 +146,9 @@ foreach ($vms as $vm) {
     $dev = $arrDisk['device'];
     $bus = $arrValidDiskBuses[$arrDisk['bus']] ?? 'VirtIO';
     $boot= $arrDisk["boot order"] ;
+    $serial = $arrDisk["serial"] ;
     if ($boot < 1) $boot="Not set" ;
-    echo "<tr><td>$disk</td><td>$bus</td>";
+    echo "<tr><td>$disk</td><td>$serial</td><td>$bus</td>";
     if ($state == 'shutoff') {
       echo "<td title='Click to increase Disk Size'>";
       echo "<form method='get' action=''>";
@@ -175,41 +178,44 @@ foreach ($vms as $vm) {
     if ($disk != "" ) {
     $title = _("Eject CD Drive").".";
     $changemedia = "changemedia(\"{$uuid}\",\"{$dev}\",\"{$bus}\", \"--eject\")" ;
-    echo "<tr><td>$disk <a title='$title' href='#'  onclick='$changemedia'> <i class='fa fa-eject' aria-hidden=true></i></a></td><td>$bus</td><td>$capacity</td><td>$allocation</td><td>$boot</td></tr>"; 
+    echo "<tr><td>$disk <a title='$title' href='#'  onclick='$changemedia'> <i class='fa fa-eject' aria-hidden=true></i></a></td><td></td><td>$bus</td><td>$capacity</td><td>$allocation</td><td>$boot</td></tr>"; 
     } else {
       $title = _("Insert CD").".";
       $changemedia = "changemedia(\"{$uuid}\",\"{$dev}\",\"{$bus}\",\"--select\")" ;
       $disk = _("No CD image inserted in to drive") ;
-      echo "<tr><td>$disk<a title='$title' href='#'  onclick='$changemedia'> <i class='fa fa-bullseye' aria-hidden=true></i></a> </td><td>$bus</td><td>$capacity</td><td>$allocation</td><td>$boot</td></tr>"; 
+      echo "<tr><td>$disk<a title='$title' href='#'  onclick='$changemedia'> <i class='fa fa-bullseye' aria-hidden=true></i></a> </td><td></td><td>$bus</td><td>$capacity</td><td>$allocation</td><td>$boot</td></tr>"; 
 
     }
 
   }
 
   /* Display VM  IP Addresses "execute":"guest-network-get-interfaces" --pretty */
-  echo "<thead><tr><th><i class='fa fa-sitemap'></i> <b>"._('Interfaces')."</b></th><th></th><th>"._('Type')."</th><th>"._('IP Address')."</th><th>"._('Prefix')."</th></tr></thead>";
-  $ip = $lv->domain_qemu_agent_command($res, '{"execute":"guest-network-get-interfaces"}', 10, 0) ;
-  if ($ip != false) {
-    $ip = json_decode($ip,true) ;
-    $ip = $ip["return"] ;
-    $duplicates = []; // hide duplicate interface names
-    foreach ($ip as $arrIP) {
-      $ipname = $arrIP["name"] ;
-      if (preg_match('/^(lo|Loopback)/',$ipname)) continue; // omit loopback interface
-      $iphdwadr = $arrIP["hardware-address"] == "" ?  _("N/A") : $arrIP["hardware-address"] ;
-      $iplist = $arrIP["ip-addresses"] ;
-      foreach ($iplist as $arraddr) {
-        $ipaddrval = $arraddr["ip-address"] ;
-        if (preg_match('/^f[c-f]/',$ipaddrval)) continue; // omit ipv6 private addresses
-        $iptype = $arraddr["ip-address-type"] ;
-        $ipprefix = $arraddr["prefix"] ;
-        $ipnamemac = "$ipname ($iphdwadr)";
-        if (!in_array($ipnamemac,$duplicates)) $duplicates[] = $ipnamemac; else $ipnamemac = "";
-        echo "<tr><td>$ipnamemac</td><td></td><td>$iptype</td><td>$ipaddrval</td><td>$ipprefix</td></tr>";
+  echo "<thead><tr><th><i class='fa fa-sitemap'></i> <b>"._('Interfaces')."</b></th><th></th><th></th><th>"._('Type')."</th><th>"._('IP Address')."</th><th>"._('Prefix')."</th></tr></thead>";
+  $gastate = getgastate($res) ;
+  if ($gastate == "connected") {
+    $ip  = $lv->domain_interface_addresses($res, 1) ;
+    if ($ip != false) {
+      $duplicates = []; // hide duplicate interface names
+      foreach ($ip as $arrIP) {
+        $ipname = $arrIP["name"] ;
+        if (preg_match('/^(lo|Loopback)/',$ipname)) continue; // omit loopback interface
+        $iphdwadr = $arrIP["hwaddr"] == "" ?  _("N/A") : $arrIP["hwaddr"] ;
+        $iplist = $arrIP["addrs"] ;
+        foreach ($iplist as $arraddr) {
+          $ipaddrval = $arraddr["addr"] ;
+          if (preg_match('/^f[c-f]/',$ipaddrval)) continue; // omit ipv6 private addresses
+          $iptype = $arraddr["type"] ? "ipv6" : "ipv4" ;
+          $ipprefix = $arraddr["prefix"] ;
+          $ipnamemac = "$ipname ($iphdwadr)";
+          if (!in_array($ipnamemac,$duplicates)) $duplicates[] = $ipnamemac; else $ipnamemac = "";
+          echo "<tr><td>$ipnamemac</td><td></td><td></td><td>$iptype</td><td>$ipaddrval</td><td>$ipprefix</td></tr>";
         }
+      }
     }
-  } else echo "<tr><td>"._('Guest not running or guest agent not installed')."</td><td></td><td></td><td></td></tr>";
-
+  } else {
+    if ($gastate == "disconnected") echo "<tr><td>"._('Guest agent not installed')."</td><td></td><td></td><td></td></tr>";
+    else echo "<tr><td>"._('Guest not running')."</td><td></td><td></td><td></td><td></td></tr>" ;
+    }
   echo "</tbody></table>";
   echo "</td></tr>";
 }

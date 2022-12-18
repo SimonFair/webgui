@@ -41,7 +41,7 @@ $runtime = $_POST['runtime'] ?: 5;
 if (file_exists("/var/run/apcupsd.pid")) {
   exec("/sbin/apcaccess 2>/dev/null", $rows);
   for ($i=0; $i<count($rows); $i++) {
-    [$key,$val] = array_map('trim', explode(':', $rows[$i], 2));
+    [$key,$val] = array_map('trim',array_pad(explode(':',$rows[$i],2),2,''));
     switch ($key) {
     case 'MODEL':
       $status[0] = "<td $green>$val</td>";

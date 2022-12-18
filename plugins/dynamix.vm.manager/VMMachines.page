@@ -177,7 +177,7 @@ function changemedia(uuid,dev,bus,file) {
   
 }
 function getisoimage(uuid,dev,bus,file){
-  var root = "/mnt/user/isos" ;
+  var root = <?= '"'.$domain_cfg["MEDIADIR"].'"';?> ;
   var match= ".iso" ;
   var box = $("#dialogWindow");
   box.html($("#templateISO").html());

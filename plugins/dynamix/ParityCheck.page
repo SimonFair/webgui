@@ -30,7 +30,7 @@ if (file_exists($memory)) {
   if (empty($parity['day'])) $parity['day'] = "";
   if (empty($parity['dotm'])) $parity['dotm'] = "";
   if (empty($parity['month'])) $parity['month'] = "";
-  if (empty($parity['write'])) $parity['write'] = "";
+  if (empty($parity['write'])) $parity['write'] = "NOCORRECT";
 }
 if ($parity['mode']<2) $parity['cumulative'] = '';
 if ($parity['mode']==2) $parity['frequency'] = '1';
@@ -191,8 +191,8 @@ _(Month of the year)_:
 
 _(Write corrections to parity disk)_:
 : <select name="write">
-  <?=mk_option($parity['write'], "", _("Yes"))?>
   <?=mk_option($parity['write'], "NOCORRECT", _("No"))?>
+  <?=mk_option($parity['write'], "", _("Yes"))?>
   </select>
 
 :parity_write_corrections_help:

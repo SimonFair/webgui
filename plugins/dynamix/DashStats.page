@@ -178,7 +178,7 @@ span.inner{width:<?=$themes1?153:140?>px}
 span.ups{width:200px;display:inline-block;margin-bottom:4px}
 span.tx{width:75px;display:inline-block}
 span.busy,i.inactive{opacity:0.5}
-span#inbound{width:75px;display:inline-block}
+span#inbound{width:120px;display:inline-block}
 span#load{width:120px;display:inline-block}
 span#util{margin-left:20px}
 span#ups_model{margin-right:30px}

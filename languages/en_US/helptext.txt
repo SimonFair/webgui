@@ -1017,14 +1017,23 @@ Specifies the number of LOG files when LOG rotation is done.
 If set to **Yes**, when creating/editing containers the interface will be present with some extra fields related to template authoring.
 :end
 
+:docker_custom_network_type_help:
+The **ipvlan** type is best when connection to the physical network is not needed.
+Please read <u><a style="color:blue" href='https://docs.docker.com/network/ipvlan/', target='_blank'>this</a></u> on implementing an ipvlan network.<br>
+
+The **macvlan** type of network allows direct connection to the physical network.
+Please read <u><a style="color:blue" href='https://docs.docker.com/network/macvlan/', target='_blank'>this</a></u> on implementing a macvlan network.<br>
+
+**Note:** Docker uses its own dhcp service, which is the **DHCP Pool** setting.
+When you use multiple Unraid servers, then each server must have a different Docker **DHCP Pool** range configured.
+:end
+
 :docker_custom_network_access_help:
-Allows direct communication between the host and containers using a custom (macvlan) network.<br>
-By default this is prohibited.
+Allows direct communication between the host and containers using a custom **macvlan** network.  By default this is disabled.
 :end
 
 :docker_user_defined_network_help:
-User created networks are networks created by the user outside of the GUI.<br>
-By default user created networks are removed from Docker. This is done to prevent potential conflicts with the automatic generation of custom networks.
+User created networks are networks created by the user outside of the GUI.  By default user created networks are removed from Docker. This is done to prevent potential conflicts with the automatic generation of custom networks.
 
 Change this setting to preserve user defined networks, but it is the responsibility of the user to ensure these entries work correctly and are conflict free.
 :end
@@ -1067,11 +1076,6 @@ This is the storage location for Docker containers.
 
 :docker_log_rotation_active_help:
 By default a single unlimited LOG file is created. Otherwise LOG file size and number of files are limited when LOG rotation is enabled.
-:end
-
-:docker_custom_network_active_help:
-Allows direct communication between the host and containers using a custom (macvlan) network.<br>
-By default this is prohibited.
 :end
 
 :docker_user_defined_network_active_help:

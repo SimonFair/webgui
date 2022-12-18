@@ -88,10 +88,12 @@ td.wrap{white-space:normal!important}
 span#pass{display:none;margin-left:20px}
 input[type=checkbox]{margin-left:0}
 </style>
-<script src="<?autov('/webGui/javascript/jquery.base64.js')?>"></script>
 <script>
 var ctrl = '<span class="status <?=$tabbed?"":"vhshift"?>"><a style="cursor:pointer" class="tooltip_diskio" title="_(Toggle reads/writes display)_" onclick="toggle_diskio();return false"><i class="toggle fa"></i></a></span>';
 
+function base64(str) {
+  return window.btoa(unescape(encodeURIComponent(str)));
+}
 function selectInput(form) {
 <?if ($wrong && $keyfile):?>
   form.input.value = 'file';

@@ -301,7 +301,7 @@ function openPlugin(cmd,title,plg,func,start=0,button=0) {
       $(".upgrade_notice").addClass('alert');
       return;
     }
-    swal({title:title,text:"<pre id='swaltext'></pre><hr>",html:true,animation:'none',showConfirmButton:button==0,confirmButtonText:"<?=_('Close')?>"},function(){
+    swal({title:title,text:"<pre id='swaltext'></pre><hr>",html:true,animation:'none',showConfirmButton:button==0,confirmButtonText:"<?=_('Close')?>"},function(close){
       nchan_plugins.stop();
       $('div.spinner.fixed').hide();
       $('.sweet-alert').hide('fast').removeClass('nchan');
@@ -324,7 +324,7 @@ function openDocker(cmd,title,plg,func,start=0,button=0) {
       $(".upgrade_notice").addClass('alert');
       return;
     }
-    swal({title:title,text:"<pre id='swaltext'></pre><hr>",html:true,animation:'none',showConfirmButton:button!=0,confirmButtonText:"<?=_('Close')?>"},function(){
+    swal({title:title,text:"<pre id='swaltext'></pre><hr>",html:true,animation:'none',showConfirmButton:button!=0,confirmButtonText:"<?=_('Close')?>"},function(close){
       nchan_docker.stop();
       $('div.spinner.fixed').hide();
       $('.sweet-alert').hide('fast').removeClass('nchan');
@@ -347,33 +347,18 @@ function abortOperation(pid) {
     });
   });
 }
-function startStopNchan(cmd, name='changes') {
-  const channel = {nchan_changes,nchan_phistory,nchan_feedback,nchan_sysinfo,nchan_selectcase};
-  switch (cmd) {
-  case 'start':
-    channel['nchan_'+name].start();
-    break;
-  case 'stop':
-    channel['nchan_'+name].stop();
-    break;
-  }
-}
 function openChanges(cmd,title,nchan,button=0) {
   // button = 0 : hide CLOSE button (default)
   // button = 1 : show CLOSE button
-  startStopNchan('start',nchan);
-  $.post('/webGui/include/StartCommand.php',{cmd:cmd+' nchan'},function(pid) {
-    if (pid==0) {
-      startStopNchan('stop',nchan);
-      $('div.spinner.fixed').hide();
-      return;
-    }
-    swal({title:title,text:"<pre id='swalbody'></pre><hr>",html:true,animation:'none',showConfirmButton:button!=0,confirmButtonText:"<?=_('Close')?>"},function(){
-      startStopNchan('stop',nchan);
-      $('div.spinner.fixed').hide();
+  // nchan argument is not used, exists for backward compatibility
+  $.post('/webGui/include/StartCommand.php',{cmd:cmd,start:2},function(data) {
+    $('div.spinner.fixed').hide();
+    swal({title:title,text:"<pre id='swalbody'></pre><hr>",html:true,animation:'none',showConfirmButton:button!=0,confirmButtonText:"<?=_('Close')?>"},function(close){
       $('.sweet-alert').hide('fast').removeClass('nchan');
     });
     $('.sweet-alert').addClass('nchan');
+    $('pre#swalbody').html(data);
+    $('button.confirm').text("<?=_('Done')?>").prop('disabled',false).show();
   });
 }
 function openAlert(cmd,title,func) {
@@ -709,7 +694,7 @@ foreach ($pages as $page) {
   if ($close) echo "</div></div>";
 }
 if (count($pages)) {
-  $running = file_exists($nchan_pid) ? explode("\n",file_get_contents($nchan_pid)) : [];
+  $running = file_exists($nchan_pid) ? file($nchan_pid,FILE_IGNORE_NEW_LINES) : [];
   $start   = array_diff($nchan, $running);  // returns any new scripts to be started
   $stop    = array_diff($running, $nchan);  // returns any old scripts to be stopped
   $running = array_merge($start, $running); // update list of current running nchan scripts
@@ -726,7 +711,7 @@ if (count($pages)) {
       array_splice($running,array_search($row,$running),1);
     }
   }
-  if (count($running)) file_put_contents($nchan_pid,implode("\n",$running)); else @unlink($nchan_pid);
+  if (count($running)) file_put_contents($nchan_pid,implode("\n",$running)."\n"); else @unlink($nchan_pid);
 }
 unset($pages,$page,$pgs,$pg,$icon,$nchan,$running,$start,$stop,$row,$script,$opt,$nchan_run);
 ?>
@@ -870,36 +855,6 @@ nchan_plugins.on('message', function(data) {
   box.html(text.join('<br>')).scrollTop(box[0].scrollHeight);
 });
 
-var nchan_changes = new NchanSubscriber('/sub/changes',{subscriber:'websocket'});
-nchan_changes.on('message', function(data) {
-  if (!data || openDone(data)) return;
-  $('pre#swalbody').html(data);
-});
-
-var nchan_phistory = new NchanSubscriber('/sub/phistory',{subscriber:'websocket'});
-nchan_phistory.on('message', function(data) {
-  if (!data || openDone(data)) return;
-  $('pre#swalbody').html(data);
-});
-
-var nchan_feedback = new NchanSubscriber('/sub/feedback',{subscriber:'websocket'});
-nchan_feedback.on('message', function(data) {
-  if (!data || openDone(data)) return;
-  $('pre#swalbody').html(data);
-});
-
-var nchan_sysinfo = new NchanSubscriber('/sub/sysinfo',{subscriber:'websocket'});
-nchan_sysinfo.on('message', function(data) {
-  if (!data || openDone(data)) return;
-  $('pre#swalbody').html(data);
-});
-
-var nchan_selectcase = new NchanSubscriber('/sub/selectcase',{subscriber:'websocket'});
-nchan_selectcase.on('message', function(data) {
-  if (!data || openDone(data)) return;
-  $('pre#swalbody').html(data);
-});
-
 var nchan_docker = new NchanSubscriber('/sub/docker',{subscriber:'websocket'});
 nchan_docker.on('message', function(data) {
   if (!data || openDone(data)) return;
@@ -990,8 +945,10 @@ $(function() {
     form.find('input[value="<?=_("Done")?>"],input[value="Done"]').not('input.lock').val("<?=_('Reset')?>").prop('onclick',null).off('click').click(function(){formHasUnsavedChanges=false;refresh(form.offset().top);});
   });});
   // add leave confirmation when form has changed without applying (opt-in function)
-  $('form.js-confirm-leave').on('change',function(e){formHasUnsavedChanges=true;}).on('submit',function(e){formHasUnsavedChanges=false;});
-  $(window).on('beforeunload',function(e){if (formHasUnsavedChanges) return '';}); // note: the browser creates its own popup window and warning message
+  if ($('form.js-confirm-leave').length>0) {
+    $('form.js-confirm-leave').on('change',function(e){formHasUnsavedChanges=true;}).on('submit',function(e){formHasUnsavedChanges=false;});
+    $(window).on('beforeunload',function(e){if (formHasUnsavedChanges) return '';}); // note: the browser creates its own popup window and warning message
+  }
   // form parser: add escapeQuotes protection
   $('form').each(function(){
     var action = $(this).prop('action').actionName();
@@ -1007,7 +964,7 @@ $(function() {
 <?if ($safemode):?>
   showNotice("<?=_('System running in')?> <b><?=('safe mode')?></b>");
 <?else:?>
-<?$readme = @file_get_contents("$docroot/plugins/unRAIDServer/README.md",false,null,0,20);?>
+<?$readme = @file_get_contents("$docroot/plugins/unRAIDServer/README.md",false,null,0,20)??'';?>
 <?if (strpos($readme,'REBOOT REQUIRED')!==false):?>
   showUpgrade("<b><?=_('Reboot Now')?></b> <?=_('to upgrade Unraid OS')?>",true);
 <?elseif (strpos($readme,'DOWNGRADE')!==false):?>
