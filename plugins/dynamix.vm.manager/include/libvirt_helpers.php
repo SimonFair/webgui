@@ -277,6 +277,14 @@
 			'os' => 'vyos'
 		],
 
+		' ARM ' => '', /* Linux Header */
+
+		'ARM Linux' => [
+			'form' => 'Custom.form.arm.php',
+			'icon' => 'linux.png',
+			'os' => 'linux'
+		],
+
 		' ' => '', /* Custom / XML Expert Header */
 
 		'Custom' => [
@@ -330,6 +338,21 @@
 			'valid' => '0'
 		]
 	];
+
+	$arrArch = [
+		'armv6l' => [
+			'version' => 'arm' ,
+			'binary' => '/usr/bin/qemu-system-arm'
+		],
+		'armv7l' => [
+			'version' => 'arm' ,
+			'binary' => '/usr/bin/qemu-system-arm'
+		],
+		'x86_64' => [
+			'version' => 'arm' ,
+			'binary' => '/usr/sbin/qemu'
+		]
+	] ;
 
 	$fedora = '/var/tmp/fedora-virtio-isos';
 	// set variable to obtained information
@@ -777,6 +800,8 @@
 
 		$arrQEMUInfo = $lv->get_connect_information();
 		$arrMachineTypes = $lv->get_machine_types('x86_64');
+		$arrMachineTypes = $lv->get_machine_types('armv7l');
+		#$arrMachineTypes = $lv->get_machine_types('armv6l');
 
 		$strQEMUVersion = $arrQEMUInfo['hypervisor_major'] . '.' . $arrQEMUInfo['hypervisor_minor'];
 
@@ -797,6 +822,7 @@
 				// Prior releases of i440fx
 				$arrValidMachineTypes[$arrMachine['name']] = str_replace('pc-', '', $arrMachine['name']);
 			}
+			$arrValidMachineTypes[$arrMachine['name']] = $arrMachine['name'] ;
 		}
 
 		uksort($arrValidMachineTypes, 'version_compare');

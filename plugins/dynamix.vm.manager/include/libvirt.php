@@ -59,6 +59,18 @@
 			return $tmp[$arch];
 		}
 
+		function get_all_machine_types($arch = 'x86_64' /* or 'i686' */) {
+			$tmp = libvirt_connect_get_machine_types($this->conn);
+
+			if (!$tmp)
+				return $this->_set_last_error();
+
+			if (empty($tmp[$arch]))
+				return [];
+
+			return $tmp;
+		}
+
 		function get_default_emulator() {
 			$tmp = libvirt_connect_get_capabilities($this->conn, '//capabilities/guest/arch/domain/emulator');
 			return ($tmp) ? $tmp : $this->_set_last_error();
