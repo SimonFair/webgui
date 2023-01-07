@@ -52,9 +52,8 @@ function acceptableCert($certFile, $hostname, $expectedURL) {
   return false;
 }
 $tasks       = find_tasks();
-$ethX        = 'eth0';
-#$addr       = ipaddr($ethX);
-$addr        = $_SERVER['SERVER_ADDR']??'';
+$nginx = parse_ini_file('/var/local/emhttp/nginx.ini');
+$addr = (array_key_exists('NGINX_LANIP', $nginx) && $nginx['NGINX_LANIP']) ? $nginx['NGINX_LANIP'] : ((array_key_exists('NGINX_LANIP6', $nginx) && $nginx['NGINX_LANIP6']) ? $nginx['NGINX_LANIP6'] : '');
 $keyfile     = @file_get_contents($var['regFILE']);
 $cert2Issuer = '';
 $isLEcert    = false;
@@ -85,14 +84,20 @@ if ($cert2Present) {
   $isLEcert = $isLegacyCert || $isWildcardCert;
   $subject2URL = $cert2Subject;
   if ($isWildcardCert) {
-    if (strpos($addr, ":") === false)
+    if (!$addr)
+      // if eth0 doesn't have an IP address, then show noip.hash.myunraid.net as a placeholder url
+      $subject2URL = str_replace("*", 'noip', $subject2URL);
+    elseif (strpos($addr, ":") === false)
       $subject2URL = str_replace("*", str_replace(".", "-", $addr), $subject2URL);
     else
       $subject2URL = str_replace("*", str_replace(":", "-", $addr), $subject2URL);
   }
   if ($isLEcert) {
     exec("openssl x509 -checkend 2592000 -noout -in $cert2File 2>/dev/null", $arrout, $retval_expired);
-    if (strpos($addr, ":") === false) {
+    if (!$addr) {
+      $dnsValid = false;
+      $dnsRebindingProtection = false;
+    } elseif (strpos($addr, ":") === false) {
       $rebindtest_ip = exec("host -4 -t A rebindtest4.myunraid.net 2>/dev/null|awk '{print \$4}'");
       $dnsRebindingProtection = ($rebindtest_ip != "192.168.42.42");
       if (!$dnsRebindingProtection) {
@@ -112,7 +117,6 @@ if ($cert2Present) {
   }
 }
 
-$nginx = parse_ini_file('/var/local/emhttp/nginx.ini');
 $http_port = $var['PORT'] != 80 ? ":{$var['PORT']}" : '';
 $https_port = $var['PORTSSL'] != 443 ? ":{$var['PORTSSL']}" : '';
 
@@ -159,7 +163,9 @@ switch($var['USE_SSL']) {
 
 $cert_time_format   = $display['date'].($display['date']!='%c' ? ', '.str_replace(['%M','%R'],['%M:%S','%R:%S'],$display['time']):'');
 $provisionlabel     = $isLEcert ? _('Renew') : _('Provision');
-$disabled_provision = $keyfile===false || ($isLEcert && $retval_expired===0) ? 'disabled' : '';
+$disabled_provision = $keyfile===false || ($isLEcert && $retval_expired===0) || !$addr ? 'disabled' : '';
+$disabled_provision_msg = !$addr ? _('Ensure the primary network card eth0 has an IP address.') : '';
+$disabled_upgrade   = !$addr ? 'disabled' : '';
 $disabled_updatedns = $keyfile!==false && $isLEcert ? '' : 'disabled';
 $disabled_delete    = $cert2Present && $var['USE_SSL']!='auto' ? '' : 'disabled';
 $disabled_auto      = $isLEcert && !$dnsRebindingProtection && $dnsValid ? '' : 'disabled';
@@ -170,7 +176,8 @@ $portsInUse = [];
 exec("lsof -Pni|awk '/LISTEN/ && \$9!~/127.0.0.1/ && \$9!~/\\[::1\\]/{print \$9}'|sort -u", $output);
 
 $bind = false; //= $var['BIND_MGT']=='yes'; - not used in 6.10
-$list = ['*',$addr];
+$list = ['*'];
+if ($addr) array_push($list, $addr);
 
 foreach ($output as $line) {
   [$ip, $port] = my_explode($line[0]=='[' ? ']:' : ':',$line);
@@ -375,10 +382,12 @@ _(Self-signed or user-provided certificate)_:
 
 <?if ($cert1URLvalid && $var['USE_SSL']=='yes'):?>
 _(Certificate URL)_:
-: [<?=$cert1URL?>](https://<?=$cert1URL?><?=$https_port?>)
+: <?="<a href='https://$cert1URL$https_port'>$cert1URL</a>"?>
+
 <?elseif ($cert1URLvalid):?>
 _(Certificate URL)_:
 : <?=$cert1URL?>
+
 <?else:?>
 _(Certificate URL)_:
 : _(Certificate not valid for)_ <?=$cert1URL?>
@@ -406,7 +415,7 @@ _(Unraid Let's Encrypt certificate)_:
 : <?=$cert2File?>
 
 _(Certificate URL)_:
-: [<?=$cert2Subject?>](https://<?=$subject2URL?><?=$https_port?>)
+: <?="<a href='https://$subject2URL$https_port'>$cert2Subject</a>"?>
 
 _(Certificate issuer)_:
 : <?=$cert2Issuer?>
@@ -429,11 +438,11 @@ _(CA-signed certificate file)_:
 
 <?endif;?>
 &nbsp;
-: <button type="submit" name="changePorts" value="Provision" <?=$disabled_provision?>><?=$provisionlabel?></button><button type="submit" name="changePorts" value="Delete" <?=$disabled_delete?> >_(Delete)_</button><!-- <button type="button" onclick="updateDNS(this)" <?=$disabled_updatedns?>>_(Update DNS)_</button> -->
+: <button type="submit" name="changePorts" value="Provision" <?=$disabled_provision?>><?=$provisionlabel?></button><button type="submit" name="changePorts" value="Delete" <?=$disabled_delete?> >_(Delete)_</button><!-- <button type="button" onclick="updateDNS(this)" <?=$disabled_updatedns?>>_(Update DNS)_</button> --><?=$disabled_provision_msg?>
 
 <?if ($cert2Present && $isLegacyCert):?>
 &nbsp;
-: <button type="submit" name="changePorts" value="Upgrade"><?=$upgradelabel?></button>
+: <button type="submit" name="changePorts" value="Upgrade" <?=$disabled_upgrade?>><?=$upgradelabel?></button>
 <?endif;?>
 
 :mgmt_certificate_expiration_help:

@@ -92,6 +92,73 @@ function prepareBTRFS(form) {
   }
 }
 <?endif;?>
+
+function selectDiskFsWidth(num_devices,selected_width) {
+  $('#diskFsWidthZFS').empty();
+  if ($('#diskFsProfileZFS').val() == '') {
+    var plural = (num_devices == 1) ? "" : "s";
+    $('#diskFsWidthZFS').append($('<option>', {
+      value: 1,
+      text: num_devices+' device'+plural
+    }));
+  }
+  else if ($('#diskFsProfileZFS').val() == 'mirror') {
+    var width;
+    for (width=2; width<=Math.min(num_devices,4); width++) {
+      if ((num_devices % width) == 0) {
+        var groups = num_devices / width;
+        var plural = (groups == 1) ? "" : "s";
+        $('#diskFsWidthZFS').append($('<option>', {
+          value: width,
+          text: groups+' group'+plural+' of '+width+' devices',
+          selected: (width == selected_width)
+        }));
+      }
+    }
+  } else {
+    var width, min_width;
+    if ($('#diskFsProfileZFS').val() == 'raidz1') min_width = 3;
+    else if ($('#diskFsProfileZFS').val() == 'raidz2') min_width = 4;
+    else if ($('#diskFsProfileZFS').val() == 'raidz3') min_width = 5;
+    for (width=min_width; width<=num_devices; width++) {
+      if ((num_devices % width) == 0) {
+        var groups = num_devices / width;
+        var plural = (groups == 1) ? "" : "s";
+        $('#diskFsWidthZFS').append($('<option>', {
+          value: width,
+          text: groups+' group'+plural+' of '+width+' devices',
+          selected: (width == selected_width)
+        }));
+      }
+    }
+  }
+}
+function selectDiskFsProfile(num_devices, width) {
+  var disabled = $('#diskFsType').prop('disabled');
+  if ($('#diskFsType').val().indexOf('auto') != -1) {
+    $('#diskFsProfileBTRFS').css('display','none');
+    $('#diskFsProfileBTRFS').prop('disabled',true);
+    $('#diskFsProfileZFS').css('display','none');
+    $('#diskFsProfileZFS').prop('disabled',true);
+    $('#diskFsWidthZFS').css('display','none');
+    $('#diskFsWidthZFS').prop('disabled',true);
+  } else if ($('#diskFsType').val().indexOf('btrfs') != -1) {
+    $('#diskFsProfileBTRFS').css('display','inline');
+    $('#diskFsProfileBTRFS').prop('disabled',disabled);
+    $('#diskFsProfileZFS').css('display','none');
+    $('#diskFsProfileZFS').prop('disabled',true);
+    $('#diskFsWidthZFS').css('display','none');
+    $('#diskFsWidthZFS').prop('disabled',true);
+  } else if ($('#diskFsType').val().indexOf('zfs') != -1) {
+    $('#diskFsProfileBTRFS').css('display','none');
+    $('#diskFsProfileBTRFS').prop('disabled',true);
+    $('#diskFsProfileZFS').css('display','inline');
+    $('#diskFsProfileZFS').prop('disabled',disabled);
+    $('#diskFsWidthZFS').css('display','inline');
+    $('#diskFsWidthZFS').prop('disabled',disabled);
+    selectDiskFsWidth(num_devices, width);
+  }
+}
 function prepareDeviceInfo(form) {
   var events = [];
   for (var i=0; i < <?=count($preselect)?>; i++) {
@@ -361,6 +428,7 @@ $(function() {
       }
     });
   }
+  selectDiskFsProfile(<?=$disk['devices']?>,<?=$disk['fsWidth']?>);
 });
 </script>
 
@@ -425,15 +493,17 @@ _(Spin down delay)_:
 _(File system status)_:
 : <?=_($disk['fsStatus'])?>&nbsp;
 
-<?$disabled = (($var['fsState']=="Stopped" && $var['mdState']=="SWAP_DSBL") || $disk['fsStatus']=='Mounted') ? "disabled" : ""?>
+<?$disabled = (($var['fsState']=="Stopped" && $var['mdState']=="SWAP_DSBL") || $disk['fsStatus']=='Mounted') || !empty($disk['uuid']) ? "disabled" : ""?>
 <?if ($disk['type']=="Data" || (isset($disk['slots']) && $disk['slots']==1)):?>
 _(File system type)_:
 : <select id="diskFsType" name="diskFsType.<?=$disk['idx']?>" <?=$disabled?>>
   <?=mk_option($disk['fsType'], "auto", _('auto'))?>
   <?=mk_option($disk['fsType'], "xfs", _('xfs'))?>
+  <?=mk_option($disk['fsType'], "zfs", _('zfs'))?>
   <?=mk_option($disk['fsType'], "btrfs", _('btrfs'))?>
   <?=mk_option($disk['fsType'], "reiserfs", _('reiserfs'))?>
   <?=mk_option($disk['fsType'], "luks:xfs", _('xfs')." - "._('encrypted'))?>
+  <?=mk_option($disk['fsType'], "luks:zfs", _('zfs')." - "._('encrypted'))?>
   <?=mk_option($disk['fsType'], "luks:btrfs", _('btrfs')." - "._('encrypted'))?>
   <?=mk_option($disk['fsType'], "luks:reiserfs", _('reiserfs')." - "._('encrypted'))?>
   </select>
@@ -442,10 +512,29 @@ _(File system type)_:
 
 <?elseif (isset($disk['slots']) && $disk['slots']>1):?>
 _(File system type)_:
-: <select id="diskFsType" name="diskFsType.<?=$disk['idx']?>" <?=$disabled?>>
+: <select id="diskFsType" name="diskFsType.<?=$disk['idx']?>" <?=$disabled?> onchange="selectDiskFsProfile(<?=$disk['devices']?>,0)">
   <?=mk_option($disk['fsType'], "auto", _('auto'))?>
+  <?=mk_option($disk['fsType'], "zfs", _('zfs'))?>
   <?=mk_option($disk['fsType'], "btrfs", _('btrfs'))?>
+  <?=mk_option($disk['fsType'], "luks:zfs", _('zfs')." - "._('encrypted'))?>
   <?=mk_option($disk['fsType'], "luks:btrfs", _('btrfs')." - "._('encrypted'))?>
+  </select><select id="diskFsProfileBTRFS" name="diskFsProfile.<?=$disk['idx']?>" <?=$disabled?>>
+  <?=mk_option($disk['fsProfile'],"single", _('single'))?>
+  <?=mk_option($disk['fsProfile'],"raid0", _('raid0'))?>
+  <?if ($disk['devices']>=2) echo mk_option($disk['fsProfile'],"raid1", _('raid1'))?>
+  <?if ($disk['devices']>=3) echo mk_option($disk['fsProfile'],"raid1c3", _('raid1c3'))?>
+  <?if ($disk['devices']>=4) echo mk_option($disk['fsProfile'],"raid1c4", _('raid1c4'))?>
+  <?if ($disk['devices']>=4) echo mk_option($disk['fsProfile'],"raid10", _('raid10'))?>
+  <?if ($disk['devices']>=3) echo mk_option($disk['fsProfile'],"raid5", _('raid5'))?>
+  <?if ($disk['devices']>=4) echo mk_option($disk['fsProfile'],"raid6", _('raid6'))?>
+  </select><select id="diskFsProfileZFS" name="diskFsProfile.<?=$disk['idx']?>" <?=$disabled?> onchange="selectDiskFsWidth(<?=$disk['devices']?>,0)">
+  <?if ($disk['devices']==1) echo mk_option($disk['fsProfile'],"", _('single'))?>
+  <?if ($disk['devices']>=2) echo mk_option($disk['fsProfile'],"", _('raid0'))?>
+  <?if (($disk['devices']%2)==0 || ($disk['devices']%3)==0 || ($disk['devices']%4)==0) echo mk_option($disk['fsProfile'],"mirror", _('mirror'))?>
+  <?if ($disk['devices']>=3) echo mk_option($disk['fsProfile'],"raidz1", _('raidz'))?>
+  <?if ($disk['devices']>=4) echo mk_option($disk['fsProfile'],"raidz2", _('raidz2'))?>
+  <?if ($disk['devices']>=5) echo mk_option($disk['fsProfile'],"raidz3", _('raidz3'))?>
+  </select><select id="diskFsWidthZFS" name="diskFsWidth.<?=$disk['idx']?>" <?=$disabled?>>
   </select>
 
 <?endif;?>
@@ -527,7 +616,7 @@ _(btrfs balance status)_:
 <?if (isset($disk['devices']) && $disk['devices']>1):?>
   <select onchange="updateMode(this.form,this.value)">
   <?=mk_option(1,'',_('Perform full balance'))?>
-  <?=mk_option(1,'-dconvert=single,soft -mconvert=raid1,soft',_('Convert to single mode'))?>
+  <?=mk_option(1,'-dconvert=single,soft -mconvert=dup,soft',_('Convert to single mode'))?>
   <?=mk_option(1,'-dconvert=raid0,soft -mconvert=raid1,soft',_('Convert to raid0 mode'))?>
   <?=mk_option(1,'-dconvert=raid1,soft -mconvert=raid1,soft',_('Convert to raid1 mode'))?>
   <?if ($disk['devices']>=3) echo mk_option(1,'-dconvert=raid1c3,soft -mconvert=raid1c3,soft',_('Convert to raid1c3 mode'))?>
@@ -754,6 +843,14 @@ _(btrfs check status)_:
 
 <?endif;?>
 </form>
+<?endif;?>
+<?if (strpos($disk['fsType']??'',"zfs")!==false):?>
+<div id="title" class="nocontrol"><span class="left"><i class="title fa fa-paint-brush"></i>_(Scrub Status)_</span></div>
+<?if ($disk['fsStatus']=="Mounted"):?>
+_(zpool status)_:
+: <?echo "<pre>".shell_exec("/usr/sbin/zpool status -P $tag")."</pre>"?>
+
+<?endif;?>
 <?endif;?>
 <?if (strpos($disk['fsType']??'',"reiserfs")!==false):?>
 <div id="title" class="nocontrol"><span class="left"><i class="title fa fa-shield"></i>_(Check Filesystem Status)_</span></div>

@@ -38,6 +38,12 @@ function model($id) {
 }
 function device_info(&$disk,$online) {
   global $pools, $var, $crypto;
+  if ($disk['type'] != 'Parity') {
+    $dir = $disk['name']=='flash' ? "/boot" : "/mnt/{$disk['name']}";
+    $view = "<a class='view' href=\"/Main/Browse?dir=".htmlspecialchars($dir)."\"><i class=\"icon-u-tab\" title=\""._('Browse')." $dir\"></i></a>";
+  } else {
+    $view = "<a class='view'></a>";
+  }
   $name = $disk['name'];
   $fancyname = compress(_(my_disk($name),3),16,5);
   $type = $disk['type']=='Flash' ? $disk['type'] : 'Device';
@@ -88,11 +94,7 @@ function device_info(&$disk,$online) {
       $luks = "<a class='info'><i class='padlock fa fa-lock red-text'></i><span>"._('Device locked: unknown error')."</span></a>";
       break;
   } else $luks = '';
-  return $status.$luks.$link;
-}
-function device_browse(&$disk) {
-  $dir = $disk['name']=='flash' ? "/boot" : "/mnt/{$disk['name']}";
-  return "<a href=\"/Main/Browse?dir=".htmlspecialchars($dir)."\"><i class=\"icon-u-tab\" title=\""._('Browse')." $dir\"></i></a>";
+  return $view.$status.$luks.$link;
 }
 function device_desc(&$disk) {
   global $var;
@@ -137,7 +139,7 @@ function fs_info(&$disk) {
   global $display, $pools;
   $echo = [];
   if (empty($disk['fsStatus']) || $disk['fsStatus']=='-') {
-    return ($disk['type']=='Cache' && !in_array($disk['name'],$pools)) ? "<td colspan='4'>"._('Device is part of a pool')."</td><td></td>" : "<td colspan='5'></td>";
+    return ($disk['type']=='Cache' && !in_array($disk['name'],$pools)) ? "<td colspan='4'>"._('Device is part of a pool')."</td>" : "<td colspan='5'></td>";
   } elseif ($disk['fsStatus']=='Mounted') {
     $echo[] = "<td>".vfs_type($disk['fsType']??'')."</td>";
     $echo[] = "<td>".my_scale(($disk['fsSize']??0)*1024,$unit,-1)." $unit</td>";
@@ -153,9 +155,8 @@ function fs_info(&$disk) {
       $free = isset($disk['fsSize']) && $disk['fsSize']>0 ? round(100*$disk['fsFree']/$disk['fsSize']) : 0;
       $echo[] = "<td><div class='usage-disk'><span style='width:$free%' class='".usage_color($disk,$free,true)."'></span><span>".my_scale($disk['fsFree']*1024,$unit)." $unit</span></div></td>";
     }
-    $echo[] = "<td>".device_browse($disk)."</td>";
   } else {
-    $echo[] = "<td>".vfs_type($disk['fsType']??'')."</td><td colspan='4' style='text-align:center'>"._($disk['fsStatus'])."</td>";
+    $echo[] = "<td>".vfs_type($disk['fsType']??'')."</td><td colspan='3' style='text-align:center'>"._($disk['fsStatus'])."</td>";
   }
   return implode($echo);
 }
@@ -183,12 +184,12 @@ function array_offline(&$disk,$pool='') {
   case 'DISK_NP_DSBL':
     $echo[] = "<td>".device_info($disk,false)."</td>";
     $echo[] = "<td>".assignment($disk)."</td>";
-    $echo[] = "<td colspan='9'></td>";
+    $echo[] = "<td colspan='8'></td>";
     break;
   case 'DISK_NP_MISSING':
     $echo[] = "<td>".device_info($disk,false)."<br><span class='diskinfo'><em>"._('Missing')."</em></span></td>";
     $echo[] = "<td>".assignment($disk)."<em>{$disk['idSb']} - ".my_scale($disk['sizeSb']*1024,$unit)." $unit</em></td>";
-    $echo[] = "<td colspan='9'></td>";
+    $echo[] = "<td colspan='8'></td>";
     break;
   case 'DISK_OK':
   case 'DISK_DSBL':
@@ -198,13 +199,13 @@ function array_offline(&$disk,$pool='') {
     $echo[] = "<td>".device_info($disk,false)."</td>";
     $echo[] = "<td>".assignment($disk)."</td>";
     $echo[] = "<td>".my_temp($disk['temp'])."</td>";
-    $echo[] = "<td colspan='8'>$warning</td>";
+    $echo[] = "<td colspan='7'>$warning</td>";
     break;
   case 'DISK_WRONG':
     $echo[] = "<td>".device_info($disk,false)."<br><span class='diskinfo'><em>"._('Wrong')."</em></span></td>";
     $echo[] = "<td>".assignment($disk)."<em>{$disk['idSb']} - ".my_scale($disk['sizeSb']*1024,$unit)." $unit</em></td>";
     $echo[] = "<td>".my_temp($disk['temp'])."</td>";
-    $echo[] = "<td colspan='8'>$warning</td>";
+    $echo[] = "<td colspan='7'>$warning</td>";
     break;
   }
   $echo[] = "</tr>";
@@ -290,9 +291,8 @@ function show_totals($text,$array,$name) {
       $free = $sum['fsSize'] ? round(100*$sum['fsFree']/$sum['fsSize']) : 0;
       $echo[] = "<td><div class='usage-disk'><span style='width:$free%' class='".usage_color($display,$free,true)."'></span><span>".my_scale($sum['fsFree']*1024,$unit)." $unit</span></div></td>";
     }
-    $echo[] = "<td></td>";
   } else {
-    $echo[] = "<td colspan=4></td>";
+    $echo[] = "<td colspan=3></td>";
   }
   $echo[] = "</tr>";
   return implode($echo);
@@ -392,9 +392,9 @@ while (true) {
   foreach ($data as $disk) $crypto |= $disk['luksState']!=0 || vfs_luks($disk['fsType']??'');
   if ($var['fsState']=='Stopped') {
     foreach ($parity as $disk) $echo[0] .= array_offline($disk);
-    $echo[0] .= "<tr class='tr_last'><td style='height:12px' colspan='11'></td></tr>";
+    $echo[0] .= "<tr class='tr_last'><td style='height:12px' colspan='10'></td></tr>";
     foreach ($data as $disk) $echo[0] .= array_offline($disk);
-    $echo[0] .= "<tr class='tr_last'><td>"._('Slots').":</td><td colspan='9'>".array_slots()."</td><td></td></tr>";
+    $echo[0] .= "<tr class='tr_last'><td>"._('Slots').":</td><td colspan='8'>".array_slots()."</td><td></td></tr>";
   } else {
     foreach ($parity as $disk) if ($disk['status']!='DISK_NP_DSBL') $echo[0] .= array_online($disk);
     foreach ($data as $disk) $echo[0] .= array_online($disk);
@@ -431,7 +431,7 @@ while (true) {
       }
       $data = []; foreach ($log as $key => $value) $data[] = "$key=\"$value\"";
       file_put_contents($pool_log,implode("\n",$data));
-      $echo[$n] .= "<tr class='tr_last'><td>"._('Slots').":</td><td colspan='9'>".cache_slots($off,$pool,$cache[$pool]['devicesSb'],$cache[$pool]['slots'])."</td><td></td></tr>";
+      $echo[$n] .= "<tr class='tr_last'><td>"._('Slots').":</td><td colspan='8'>".cache_slots($off,$pool,$cache[$pool]['devicesSb'],$cache[$pool]['slots'])."</td><td></td></tr>";
     } else {
       foreach ($cache as $disk) if (prefix($disk['name'])==$pool) {
         if (substr($cache[$pool]['fsStatus'],0,11)=='Unmountable' && empty($disk['fsStatus'])) $disk['fsStatus'] = $cache[$pool]['fsStatus'];
@@ -460,9 +460,9 @@ while (true) {
     if (file_exists("/tmp/preclear_stat_$dev")) {
       $text = exec("cut -d'|' -f3 /tmp/preclear_stat_$dev|sed 's:\^n:\<br\>:g'");
       if (strpos($text,'Total time')===false) $text = _('Preclear in progress').'... '.$text;
-      $echo[$n] .= "<td colspan='5' style='text-align:right'><em>$text</em></td>";
+      $echo[$n] .= "<td colspan='4' style='text-align:right'><em>$text</em></td>";
     } else
-      $echo[$n] .= "<td colspan='5'></td>";
+      $echo[$n] .= "<td colspan='4'></td>";
     $echo[$n] .= "</tr>";
   }
 

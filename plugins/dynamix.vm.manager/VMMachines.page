@@ -64,7 +64,6 @@ if (isset($_GET['refresh'])) {
     echo "<meta http-equiv='refresh' content='5; url=/VMs?name=$vm&amp;refresh=true'>";
     $msg = "Waiting for $vm to shutdown...";
   } else {
-    echo "<script>clearHistory();</script>";
     $msg = "$vm has been shutdown";
   }
 }
@@ -99,9 +98,8 @@ if ($subaction) {
     ? "Snapshot description for $vm has been saved"
     : "Error: ".$lv->get_last_error();
   }
-  echo "<script>clearHistory();</script>";
 }
-if ($libvirt_running=='yes') $vms = $lv->get_domains();
+if ($libvirt_running=='yes') $vms = $lv->get_domains() ?: [];
 if (empty($vms)) {
   $msg = $libvirt_running=='yes'
   ? 'No VMs defined. Create from template or add XML.'
@@ -273,7 +271,7 @@ function loadlist() {
 $(function() {
 <?if ($msg):?>
   <?$color = strpos($msg, "rror:")!==false ? 'red-text':'green-text'?>
-  $('#countdown').html("<span class='<?-$color?>'><?=_($msg)?></span>");
+  $('#countdown').html("<span class='<?=$color?>'><?=_($msg)?></span>");
 <?endif;?>
   $('#btnAddVM').click(function AddVMEvent(){$('.tab>input#tab2').click();});
   loadlist();

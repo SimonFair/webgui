@@ -38,7 +38,6 @@ $style[] = "</style>";
 
 $script = ["<script>"];
 $script[] = "function selectDone() {";
-$script[] = "  nchan_selectcase.stop();";
 $script[] = "  \$('.sweet-alert').hide('fast').removeClass('nchan');";
 $script[] = "  swal.close();";
 $script[] = "  getCase();";

@@ -223,11 +223,11 @@ function createIPs($list) {
   return implode(', ',array_map('host',array_filter(array_map('trim',explode(',',$list)))));
 }
 function parseInput($vtun,&$input,&$x) {
-  global $conf,$user,$var,$default,$default6,$vpn;
+  global $conf,$user,$var,$default,$default6,$vpn,$tunip;
   $section = 0; $addPeer = false;
   foreach ($input as $key => $value) {
     if ($key[0]=='#') continue;
-    [$id,$i] = my_explode(':',$key);
+    [$id,$i] = array_pad(explode(':',$key),2,0);
     if ($i != $section) {
       if ($section==0) {
         // add WG routing for docker containers. Only IPv4 supported
@@ -367,6 +367,7 @@ case 'update':
   $gone = explode(',',$_POST['#deleted']);
   $conf = ['[Interface]'];
   $user = $peers = $var = [];
+  $tunip = "";
   $var['subnets1'] = "AllowedIPs=".createList($_POST['#subnets1']);
   $var['subnets2'] = "AllowedIPs=".createList($_POST['#subnets2']);
   $var['shared1']  = "AllowedIPs=".createList($_POST['#shared1']);
@@ -382,6 +383,14 @@ case 'update':
   file_put_contents($cfg,implode("\n",$user)."\n");
   createPeerFiles($vtun);
   if ($upstate) wgState($vtun,'up',$_POST['#type']);
+  // if $tunip (with dots to slashes) not found in nginx config, then reload nginx to add it
+  $nginx = parse_ini_file('/var/local/emhttp/nginx.ini');
+  if (stripos($nginx['NGINX_CERTNAME'],'.myunraid.net')!==false) {
+    $key = 'NGINX_'.strtoupper($vtun).'FQDN';
+    if (!isset($nginx[$key]) || stripos($nginx[$key],str_replace('.','-',$tunip))===false) {
+      exec("/etc/rc.d/rc.nginx reload");
+    }
+  }
   $save = false;
   break;
 case 'toggle':
@@ -435,6 +444,12 @@ case 'deltunnel':
     delete_file("$etc/$vtun.conf","$etc/$vtun.cfg");
     delPeer($vtun);
     autostart($vtun,'off');
+    // remove tunnel url from nginx config
+    $nginx = parse_ini_file('/var/local/emhttp/nginx.ini');
+    $key = 'NGINX_'.strtoupper($vtun).'FQDN';
+    if (isset($nginx[$key])) {
+      exec("/etc/rc.d/rc.nginx reload");
+    }
   }
   echo $error ? 1 : 0;
   break;

@@ -190,7 +190,7 @@ function device_smart(&$disk, &$fail, &$smart) {
       exec("awk 'NR>7{print $1,$2,$4,$6,$9,$10}' ".escapeshellarg($file)." 2>/dev/null", $codes);
       foreach ($codes as $code) {
         if (!$code || !is_numeric($code[0])) continue;
-        [$id,$class,$value,$thres,$when,$raw] = explode(' ',$code);
+        [$id,$class,$value,$thres,$when,$raw] = my_explode(' ',$code,7);
         $failing = strpos($when,'FAILING_NOW')!==false;
         if (!$failing && !in_array($id,$events)) continue;
         if ($failing || ($select ? $thres>0 && $value<=$thres*$level : $raw>0)) $title .= normalize($class,$failing?$when:$raw);

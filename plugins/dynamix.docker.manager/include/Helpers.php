@@ -311,7 +311,7 @@ function xmlToCommand($xml, $create_paths=false) {
          $cmdName, $cmdNetwork, $cmdMyIP, $cmdCPUset, $logSize, $logFile, $cmdPrivileged, implode(' -e ', $Variables), implode(' -l ', $Labels), implode(' -p ', $Ports), implode(' -v ', $Volumes), implode(' --device=', $Devices), $xml['ExtraParams'], escapeshellarg($xml['Repository']), $xml['PostArgs']);
   return [preg_replace('/\s\s+/', ' ', $cmd), $xml['Name'], $xml['Repository']];
 }
-function stopContainer($name, $t=10, $echo=true) {
+function stopContainer($name, $t=false, $echo=true) {
   global $DockerClient;
   $waitID = mt_rand();
   if ($echo) {

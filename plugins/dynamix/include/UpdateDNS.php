@@ -39,7 +39,7 @@ if (!function_exists('ipaddr')) {
 
 function host_lookup_ip($host) {
   $result = @dns_get_record($host, DNS_A);
-  $ip = ($result) ? $result[0]['ip'] : '';
+  $ip = ($result) ? $result[0]['ip']??'' : '';
   return($ip);
 }
 function rebindDisabled() {
@@ -163,7 +163,8 @@ function verbose_output($httpcode, $result) {
   }
   if ($result) {
     echo "Response (HTTP $httpcode):".PHP_EOL;
-    echo @json_encode(@json_decode($result, true), JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES | JSON_PRETTY_PRINT) . PHP_EOL;
+    $mutatedResult = is_array($result) ? json_encode($result) : $result;
+    echo @json_encode(@json_decode($mutatedResult, true), JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES | JSON_PRETTY_PRINT) . PHP_EOL;
   }
 }
 /**
@@ -191,11 +192,11 @@ function response_complete($httpcode, $result, $cli_success_msg='') {
 
 $cli = php_sapi_name()=='cli';
 $verbose = $anon = false;
-if ($cli && $argv[1] == "-v") {
+if ($cli && ($argc > 1) && $argv[1] == "-v") {
   $verbose = true;
   $anon = true;
 }
-if ($cli && $argv[1] == "-vv") {
+if ($cli && ($argc > 1) && $argv[1] == "-vv") {
   $verbose = true;
 }
 $var = parse_ini_file('/var/local/emhttp/var.ini');
@@ -293,7 +294,7 @@ $plgversion = file_exists("/var/log/plugins/dynamix.unraid.net.plg") ? trim(@exe
 
 // only proceed when when signed in or when legacy unraid.net SSL certificate exists
 if (!$isRegistered && !$isLegacyCert) {
-    response_complete(406, array('error' => _('Nothing to do')));
+  response_complete(406, array('error' => _('Nothing to do')));
 }
 
 // keyfile
@@ -343,7 +344,7 @@ if ($isRegistered) {
 }
 
 // if remoteaccess is enabled in 6.10.0-rc3+ and WANIP has changed since nginx started, reload nginx
-if ($post['_wanip'] && ($post['_wanip'] != $nginx['NGINX_WANIP']) && version_compare($var['version'],"6.10.0-rc2",">")) $reloadNginx = true;
+if (isset($post['_wanip']) && ($post['_wanip'] != $nginx['NGINX_WANIP']) && version_compare($var['version'],"6.10.0-rc2",">")) $reloadNginx = true;
 // if remoteaccess is currently disabled (perhaps because a wanip was not available when nginx was started)
 //    BUT the system is configured to have it enabled AND a wanip is now available
 //    then reload nginx

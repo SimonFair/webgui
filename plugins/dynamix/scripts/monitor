@@ -74,7 +74,7 @@ function check_smart(&$disk,$port,$text,$info) {
   $item = 'smart';
   foreach ($codes as $code) {
     if (!$code || !is_numeric($code[0])) continue;
-    [$id,$class,$value,$thres,$when,$raw] = explode(' ',$code);
+    [$id,$class,$value,$thres,$when,$raw] = my_explode(' ',$code,7);
     $fail = strpos($when,'FAILING_NOW')!==false;
     if (!$fail && !in_array($id,$events)) continue;
     $word = str_replace(['_',' (-)'],[' ',''],strtolower("$class ($when)"));

@@ -182,9 +182,9 @@ if (isset($_GET['updateContainer'])){
       $cmd = str_replace('/docker create ', '/docker run -d ', $cmd);
       $startContainer = true;
       // attempt graceful stop of container first
-      stopContainer($Name, $echo);
+      stopContainer($Name, false, $echo);
     }
-    // force kill container if still running after 10 seconds
+    // force kill container if still running after time-out
     if (empty($_GET['communityApplications'])) removeContainer($Name, $echo);
     execCommand($cmd, $echo);
     if ($startContainer) addRoute($Name); // add route for remote WireGuard access

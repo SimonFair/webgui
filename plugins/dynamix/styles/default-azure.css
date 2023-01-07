@@ -17,6 +17,7 @@ a.info:hover span{display:block;z-index:1}
 a.nohand{cursor:default}
 a.hand{cursor:pointer;text-decoration:none}
 a.static{cursor:default;color:#909090;text-decoration:none}
+a.view{display:inline-block;width:20px}
 i.spacing{margin-left:0;margin-right:10px}
 i.icon{font-size:1.6rem;margin-right:4px;vertical-align:middle}
 i.title{display:none}
@@ -127,11 +128,10 @@ table tbody tr.tr_last{border-bottom:1px solid #606e7f}
 table.disk_status{white-space:nowrap}
 table.disk_status thead tr:first-child td{text-transform:uppercase;color:#9794a0;border-bottom:1px solid #606e7f}
 table.disk_status td span{margin-left:10px}
-table.disk_status tr>td{width:8%;white-space:nowrap}
+table.disk_status tr>td{width:9%;white-space:nowrap}
 table.disk_status tr>td+td{width:auto}
 table.disk_status tr>td+td+td{width:6.5%;text-align:center;padding-left:4px;padding-right:8px}
 table.disk_status tr>td+td+td+td{text-align:right;padding-left:0;padding-right:12px}
-table.disk_status tr td:last-child{width:4%;padding-right:10px}
 table.disk_status tbody tr{border-bottom:1px solid #f3f0f4}
 table.disk_status tbody tr:not(.tr_last):hover td{background-color:rgba(0,0,0,0.05)}
 table.disk_status.stats tr>td+td{text-align:left;padding-left:0;padding-right:12px}
@@ -151,14 +151,11 @@ table.share_status{white-space:nowrap;margin-top:12px}
 table.share_status thead tr:first-child td{font-size:1.2rem;letter-spacing:1px;text-transform:uppercase;color:#9794a0;border-bottom:1px solid #606e7f}
 table.share_status tr>td{text-align:left;padding-left:12px}
 table.share_status tr>td+td{padding-left:0}
-table.share_status tr.share_status_size>td{padding-left:40px}
-table.share_status tr.share_status_size>td+td{padding-left:15px}
 table.share_status tbody tr{border-bottom:1px solid #f3f0f4}
 table.share_status:not(.dashboard) tbody tr:hover td{background-color:rgba(0,0,0,0.05)}
 table.share_status tbody tr:last-child td{border-bottom:1px solid #606e7f}
 table.share_status tbody tr.alert{color:#f0000c}
 table.share_status tbody tr.warn{color:#e68a00}
-table.share_status.share tr td:last-child{width:4%;text-align:right;padding-right:10px}
 table.share_status.fixed tr>td+td{min-width:39px;font-size:1.1rem;text-align:center;padding:0}
 table.share_status.table{margin-top:36px}
 table.share_status.table tr>td{width:50%}

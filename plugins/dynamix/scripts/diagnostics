@@ -118,7 +118,7 @@ function geturls_certdetails($file, $hostname, $ip="") {
   $data = implode("\n", $data);
   // determine cn
   preg_match('/ *commonName *= (.*)/', $data, $matches);
-  $cn = trim($matches[1]);
+  $cn = trim($matches[1]??'');
   if (strpos($cn, ".myunraid.net") !== false) {
     $type = 'myunraid.net';
     $iphost = str_replace('.','-',$ip);
@@ -136,7 +136,7 @@ function geturls_certdetails($file, $hostname, $ip="") {
     // replace wildcard with hostname
     $cn = str_replace('*', $hostname, $cn);
     $cn_priv = $cn;
-    if (strpos($data, "Self-signed") !== false){
+    if (strpos($data??'', "Self-signed") !== false){
       $type = 'self-signed';
     } else {
       $type = 'user-provided';
@@ -471,7 +471,7 @@ foreach ($devices as $device) {
 
 // create pool btrfs information
 foreach ($pools as $pool) {
-  if (strpos($disks[$pool]['fsType'],'btrfs')!==false) {
+  if (strpos($disks[$pool]['fsType']??'','btrfs')!==false) {
     run("echo 'Pool: $pool'|todos >>".escapeshellarg("/$diag/system/btrfs-usage.txt"));
     run("/sbin/btrfs filesystem usage -T /mnt/$pool 2>/dev/null|todos >>".escapeshellarg("/$diag/system/btrfs-usage.txt"));
   }

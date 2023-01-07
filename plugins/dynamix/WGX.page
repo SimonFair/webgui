@@ -64,7 +64,7 @@ $(function(){
       } else {
         if (ok==0) tstate['wgX']=''; else $('#toggle-wgX').switchButton({checked:true});
       }
-<?if ($wgX['UPNP:0']===''):?>
+<?if (empty($wgX['UPNP:0'])):?>
       $.post('/webGui/include/update.wireguard.php',{'#cmd':'upnpc','#xml':xml,'#vtun':'wgX','#link':'<?=$link?>','#ip':'<?=$server?>','#wg':tstate['wgX']},function(data){$('span.upnp.wgX').text(data);});
 <?endif;?>
     });
@@ -124,7 +124,7 @@ $(function(){
   if (!$.cookie('block-wgX')) $('div#block-wgX').show(); else $('i#block-wgX').removeClass('fa-chevron-up').addClass('fa-chevron-down');
   if (xml) {
     $('div.upnp.wgX').show();
-<?if ($wgX['UPNP:0']===''):?>
+<?if (empty($wgX['UPNP:0'])):?>
     $.post('/webGui/include/update.wireguard.php',{'#cmd':'upnpc','#xml':xml,'#vtun':'wgX','#link':'<?=$link?>','#ip':'<?=$server?>','#wg':$.cookie('my-wgX')},function(data){$('span.upnp.wgX').text(data);});
 <?endif;?>
   } else {
@@ -171,7 +171,7 @@ _(Local name)_:
 
 :wg_local_name_help:
 
-<div markdown="1" class="keys wgX key0"<?=$wgX['PublicKey:0']?' style="display:none">':'>'?>
+<div markdown="1" class="keys wgX key0"<?=isset($wgX['PublicKey:0'])?' style="display:none">':'>'?>
 _(Local private key)_:
 : <span class="input"><input type="text" name="PrivateKey:0" class="wide private-0" maxlength="64" value="<?=$wgX['PrivateKey:0']??''?>" onchange="highlight($(document.wgX),this,0)" placeholder="(_(mandatory)_)" required></span>
   <input type="button" class="form" value="_(Generate Keypair)_" onclick="keypair($(document.wgX),'0')">
@@ -187,22 +187,22 @@ _(Local public key)_:
 <div markdown="1" class="advanced wgX zone0" style="display:none">
 _(Network protocol)_:
 : <span class="input"><select id="protocol-wgX" name="PROT:0" class="subnet" onchange="setProtocol($(document.wgX),'wgX',true)">
-  <?=mk_option($wgX['PROT:0'], "", _("IPv4 only"))?>
-  <?=mk_option($wgX['PROT:0'], "6", _("IPv6 only"))?>
-  <?=mk_option($wgX['PROT:0'], "46", _("IPv4 + IPv6"))?>
+  <?=mk_option($wgX['PROT:0']??'', "", _("IPv4 only"))?>
+  <?=mk_option($wgX['PROT:0']??'', "6", _("IPv6 only"))?>
+  <?=mk_option($wgX['PROT:0']??'', "46", _("IPv4 + IPv6"))?>
   </select></span>
 
 <div markdown="1" class="ipv4 wgX" style="display:none">
 _(Local tunnel network pool)_:
 <input type="hidden" name="Network:0" value="">
-: <span class="input"><input type="text" name="gui:Network:0" class="subnet" maxlength="15" value="<?=explode('/',$wgX['Network:0']??'')[0]?>" onchange="setPool($(document.wgX),'wgX')" pattern="<?=$validIP4?>" title="_(IPv4 network)_" placeholder="<?=$netpool['wgX']?>">/
+: <span class="input"><input type="text" name="gui:Network:0" class="subnet" maxlength="15" value="<?=explode('/',$wgX['Network:0']??'')[0]?>" onchange="setPool($(document.wgX),'wgX')" pattern="<?=$validIP4?>" title="_(IPv4 network)_" placeholder="<?=$netpool['wgX']??''?>">/
  <input type="number" name="gui:Mask:0" class="mask" min="1" max="32" value="<?=my_explode('/',$wgX['Network:0'])[1]?>" onchange="if(quickValidate(this)) {setPool($(document.wgX),'wgX')}" placeholder="24"></span>
 
 </div>
 <div markdown="1" class="ipv6 wgX" style="display:none">
 _(Local tunnel network pool IPv6)_:
 <input type="hidden" name="Network6:0" value="">
-: <span class="input"><input type="text" name="gui:Network6:0" class="subnet" maxlength="40" value="<?=explode('/',$wgX['Network6:0']??'')[0]?>" onchange="setPool6($(document.wgX),'wgX')" pattern="<?=$validIP6?>" title="_(IPv6 network)_" placeholder="<?=$netpool6['wgX']?>">/
+: <span class="input"><input type="text" name="gui:Network6:0" class="subnet" maxlength="40" value="<?=explode('/',$wgX['Network6:0']??'')[0]?>" onchange="setPool6($(document.wgX),'wgX')" pattern="<?=$validIP6?>" title="_(IPv6 network)_" placeholder="<?=$netpool6['wgX']??''?>">/
  <input type="number" name="gui:Mask6:0" class="mask" min="1" max="128" value="<?=my_explode('/',$wgX['Network6:0']??'')[1]?>" onchange="if(quickValidate(this)) {setPool6($(document.wgX),'wgX')}" placeholder="64"></span>
 
 </div>
@@ -234,8 +234,8 @@ _(Local endpoint)_:
 <div markdown="1" class="advanced wgX zone0" style="display:none">
 _(Local server uses NAT)_:
 : <span class="input"><select name="NAT:0" class="narrow" onchange="showRoute($(document.wgX),'wgX',0)">
-  <?=mk_option($wgX['NAT:0'], "", _("Yes"))?>
-  <?=mk_option($wgX['NAT:0'], "no", _("No"))?>
+  <?=mk_option($wgX['NAT:0']??'', "", _("Yes"))?>
+  <?=mk_option($wgX['NAT:0']??'', "no", _("No"))?>
   </select></span>
   <span id="my-static1-wgX" class="block" style="display:none">_(Remark)_: _(configure your router with a static route of)_ **<?=$wgX['Network:0']?>** _(to)_ **<?=$server?>**</span><span id="my-static2-wgX" class="block" style="display:none">_(Remark)_: _(docker containers on custom networks need static routing)_ **<?=$wgX['Network:0']?>** _(to)_ **<?=$server?>**</span>
 
@@ -244,8 +244,8 @@ _(Local server uses NAT)_:
 <div markdown="1" class="upnp wg0" style="display:none">
 _(Local gateway uses UPnP)_:
 : <span class="input"><select name="UPNP:0" class="narrow" onchange="showRemark($(document.wgX))">
-  <?=mk_option($wgX['UPNP:0'], "", _("Yes"))?>
-  <?=mk_option($wgX['UPNP:0'], "no", _("No"))?>
+  <?=mk_option($wgX['UPNP:0']??'', "", _("Yes"))?>
+  <?=mk_option($wgX['UPNP:0']??'', "no", _("No"))?>
   </select></span>
 
 :wg_local_gateway_uses_upnp_help:
@@ -254,8 +254,8 @@ _(Local gateway uses UPnP)_:
 _(Local tunnel firewall)_:
 : <span class="input"><input type="text" name="DROP:0" class="wide" value="<?=$wgX['DROP:0']??''?>" onchange="quickValidate(this);" pattern="<?=$validList?>" title="_(Comma separated list of IPv4 and IPv6 IP addresses)_, _(CIDR optional)_" placeholder="(_(optional)_)"></span>
   _(Rule)_: <select name="RULE:0" class="auto">
-  <?=mk_option($wgX['RULE:0'], "", _("Deny"))?>
-  <?=mk_option($wgX['RULE:0'], "1", _("Allow"))?>
+  <?=mk_option($wgX['RULE:0']??'', "", _("Deny"))?>
+  <?=mk_option($wgX['RULE:0']??'', "1", _("Allow"))?>
   </select>
 
 :wg_local_tunnel_firewall_help:
@@ -287,23 +287,23 @@ _(DNS servers)_:
 _(Peer name)_:
 : <span class="input"><input type="text" name="Name:<?=$i?>" class="wide" maxlength="99" value="<?=$wgX["Name:$i"]??''?>" onchange="quickValidate(this);" pattern="<?=$validname?>" title="_(Use only letters A-Z, digits or space,dash,underscore)_" placeholder="(_(optional)_)"></span>
   <input type="button" class="form" value="_(Delete Peer)_" onclick="delPeer($(document.wgX),'#index-wgX-<?=$i?>')">
-  <span class="pin"><i class="fa fa-fw fa-eye eye<?=$i?><?=(file_exists("$etc/peers/peer-$tower-wgX-$i.conf")&&$wgX["TYPE:$i"]<=6)?'':' key-off'?>" style="cursor:pointer" onclick="WGconfig(this,'peer-<?=$tower?>-wgX-<?=$i?>','/peers')" title="_(View Peer Config)_"></i>
-  <i class="fa fa-fw fa-key zone<?=$i?><?=$wgX["PublicKey:$i"]?'':' key-off'?>" style="cursor:pointer" onclick="openClose($(document.wgX),null,'div.key<?=$i?>')" title="_(Toggle keys)_"></i>
+  <span class="pin"><i class="fa fa-fw fa-eye eye<?=$i?><?=(file_exists("$etc/peers/peer-$tower-wgX-$i.conf")&&isset($wgX["TYPE:$i"])&&$wgX["TYPE:$i"]<=6)?'':' key-off'?>" style="cursor:pointer" onclick="WGconfig(this,'peer-<?=$tower?>-wgX-<?=$i?>','/peers')" title="_(View Peer Config)_"></i>
+  <i class="fa fa-fw fa-key zone<?=$i?><?=isset($wgX["PublicKey:$i"])?'':' key-off'?>" style="cursor:pointer" onclick="openClose($(document.wgX),null,'div.key<?=$i?>')" title="_(Toggle keys)_"></i>
   <i id="chevron-wgX-<?=$i?>" class="fa fa-fw fa-chevron-down" style="cursor:pointer" onclick="openClose($(document.wgX),this,'div.zone<?=$i?>')" title="_(Toggle view)_"></i></span>
 
 :wg_peer_name_help:
 
 _(Peer type of access)_:
 : <span class="input"><select name="TYPE:<?=$i?>" class="auto" onchange="updatePeer($(document.wgX),<?=$i?>,this.value,'wgX')">
-  <?=mk_option($wgX["TYPE:$i"], "0", _("Remote access to server"))?>
-  <?=mk_option($wgX["TYPE:$i"], "1", _("Remote access to LAN"))?>
-  <?=mk_option($wgX["TYPE:$i"], "2", _("Server to server access"))?>
-  <?=mk_option($wgX["TYPE:$i"], "3", _("LAN to LAN access"))?>
-  <?=mk_option($wgX["TYPE:$i"], "4", _("Server hub & spoke access"))?>
-  <?=mk_option($wgX["TYPE:$i"], "5", _("LAN hub & spoke access"))?>
-  <?=mk_option($wgX["TYPE:$i"], "6", _("Remote tunneled access"))?>
-  <?=mk_option($wgX["TYPE:$i"], "7", _("VPN tunneled access for system"),count($peer_wgX)==1?'':'disabled')?>
-  <?=mk_option($wgX["TYPE:$i"], "8", _("VPN tunneled access for docker"))?>
+  <?=mk_option($wgX["TYPE:$i"]??'', "0", _("Remote access to server"))?>
+  <?=mk_option($wgX["TYPE:$i"]??'', "1", _("Remote access to LAN"))?>
+  <?=mk_option($wgX["TYPE:$i"]??'', "2", _("Server to server access"))?>
+  <?=mk_option($wgX["TYPE:$i"]??'', "3", _("LAN to LAN access"))?>
+  <?=mk_option($wgX["TYPE:$i"]??'', "4", _("Server hub & spoke access"))?>
+  <?=mk_option($wgX["TYPE:$i"]??'', "5", _("LAN hub & spoke access"))?>
+  <?=mk_option($wgX["TYPE:$i"]??'', "6", _("Remote tunneled access"))?>
+  <?=mk_option($wgX["TYPE:$i"]??'', "7", _("VPN tunneled access for system"),count($peer_wgX)==1?'':'disabled')?>
+  <?=mk_option($wgX["TYPE:$i"]??'', "8", _("VPN tunneled access for docker"))?>
   </select></span>
   <span id="access-type-<?=$i?>" class="access-type"></span>
 
@@ -311,7 +311,7 @@ _(Peer type of access)_:
 > ![](<?=autov('/webGui/images/wireguard-help.png')?>)
 <?endif;?>
 
-<div markdown="1" class="keys wgX key<?=$i?>"<?=$wgX["PublicKey:$i"]?' style="display:none">':'>'?>
+<div markdown="1" class="keys wgX key<?=$i?>"<?=isset($wgX["PublicKey:$i"])?' style="display:none">':'>'?>
 _(Peer private key)_:
 : <span class="input"><input type="text" name="PrivateKey:<?=$i?>" class="wide private-<?=$i?>" maxlength="64" value="<?=$wgX["PrivateKey:$i"]??''?>" onchange="highlight($(document.wgX),this,<?=$i?>)" placeholder="(_(optional)_)"></span>
   <input type="button" class="form" value="_(Generate Keypair)_" onclick="keypair($(document.wgX),'<?=$i?>')">
@@ -347,7 +347,7 @@ _(Peer tunnel address IPv6)_:
 
 _(Peer endpoint)_:
 <input type="hidden" name="Endpoint:<?=$i?>" value="">
-: <span class="input"><input type="text" name="gui:Endpoint:<?=$i?>" class="subnet" value="<?=$wgX["Endpoint:$i"]??''?>" pattern="<?=$validText?>" title="_(IP address or FQDN)_" onchange="toLC(this);quickValidate(this);" <?=($vpn_wgX||(int)$wgX["TYPE:$i"]==2||(int)$wgX["TYPE:$i"]==3)?'placeholder="(_(mandatory)_)" required':'placeholder="(_(not used)_)"'?>>:
+: <span class="input"><input type="text" name="gui:Endpoint:<?=$i?>" class="subnet" value="<?=$wgX["Endpoint:$i"]??''?>" pattern="<?=$validText?>" title="_(IP address or FQDN)_" onchange="toLC(this);quickValidate(this);" <?=($vpn_wgX||isset($wgX["TYPE:$i"])&&(int)$wgX["TYPE:$i"]==2||isset($wgX["TYPE:$i"])&&(int)$wgX["TYPE:$i"]==3)?'placeholder="(_(mandatory)_)" required':'placeholder="(_(not used)_)"'?>>:
   <input type="number" name="gui:ListenPort:<?=$i?>" class="port" min="1" max="65535" value="<?=$wgX["ListenPort:$i"]??''?>" onchange="quickValidate(this);"<?=isset($wgX["Endpoint:$i"])?" placeholder=\"".($wgX['ListenPort:0']??$netport['wgX']??'')."\"":""?>></span>
   <input type="button" class="form ping-button2-<?=$i?>" value="Ping" onclick="ping($(document.wgX),this,'input[name=&quot;gui:Endpoint:<?=$i?>&quot;]')"<?=isset($wgX["Endpoint:$i"])?'':' disabled'?>>
 
@@ -359,7 +359,7 @@ _(Peer allowed IPs)_:
 :wg_peer_allowed_ips_help:
 
 _(Peer DNS server)_:
-: <span class="input"><input type="text" name="DNS:<?=$i?>" class="subnet" maxlength="40" value="<?=$wgX["DNS:$i"]??''?>" onchange="quickValidate(this);" pattern="<?=$validDNSServerList?>" title="_(Comma separated list of IPv4 and IPv6 IP addresses)_"<?=(int)$wgX["TYPE:$i"]!=6?'placeholder="(_(optional)_)"':'placeholder="(_(mandatory)_)" required'?>></span>
+: <span class="input"><input type="text" name="DNS:<?=$i?>" class="subnet" maxlength="40" value="<?=$wgX["DNS:$i"]??''?>" onchange="quickValidate(this);" pattern="<?=$validDNSServerList?>" title="_(Comma separated list of IPv4 and IPv6 IP addresses)_"<?=isset($wgX["TYPE:$i"])&&(int)$wgX["TYPE:$i"]!=6?'placeholder="(_(optional)_)"':'placeholder="(_(mandatory)_)" required'?>></span>
 
 :wg_peer_dns_server_help:
 

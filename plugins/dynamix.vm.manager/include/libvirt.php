@@ -697,9 +697,7 @@
 			}
 
 			$sharestr = '';
-			$memorybacking ="<memoryBacking>
-								<nosharepages/>
-							</memoryBacking>" ;
+			$memorybacking = json_decode($domain['memoryBacking'],true);
 
 			if (!empty($shares)) {
 				foreach ($shares as $i => $share) {
@@ -708,10 +706,8 @@
 					}
 
 					if ($share['mode'] == "virtiofs") {
-						$memorybacking = "<memoryBacking>
-											<source type='memfd'/>
-											<access mode='shared'/>
-											</memoryBacking>" ;
+					if (!isset($memorybacking['source'])) 	$memorybacking['source']["@attributes"]["type"] = "memfd" ;	
+					if (!isset($memorybacking['access'])) 	$memorybacking['access']["@attributes"]["mode"] = "shared" ;									
 
 						$sharestr .=	"<filesystem type='mount' accessmode='passthrough'>
 											<driver type='virtiofs' queue='1024' />
@@ -896,6 +892,8 @@
 						</memballoon>";
 			}
 			#$osbootdev = "" ;
+			$memorybackingXML = Array2XML::createXML('memoryBacking', $memorybacking);
+			$memoryBackingXML = $memorybackingXML->saveXML($memorybackingXML->documentElement);
 			return "<domain type='$type' xmlns:qemu='http://libvirt.org/schemas/domain/qemu/1.0'>
 						<uuid>$uuid</uuid>
 						<name>$name</name>
@@ -904,7 +902,7 @@
 						<currentMemory unit='KiB'>$mem</currentMemory>
 						<memory unit='KiB'>$maxmem</memory>
 						$cpustr
-						$memorybacking
+						$memoryBackingXML
 						<os>
 							$loader
 							<type arch='$arch' machine='$machine'>hvm</type>
@@ -1227,7 +1225,7 @@
 						'capacity' => '-',
 						'allocation' => '-',
 						'physical' => '-',
-						'bus' =>  $disk->target->attributes()->bus,
+						'bus' =>  $disk->target->attributes()->bus->__toString(),
 						'boot order' => $disk->boot->attributes()->order ,
 						'serial' => $disk->serial 
 					];
@@ -1285,10 +1283,13 @@
 			$ret = 0;
 			for ($i = 0; $i < sizeof($tmp); $i++) {
 				if (($disk == '*') || ($tmp[$i]['device'] == $disk))
-					if ($physical)
+					if ($physical) {
+					    if($tmp[$i]['physical'] == "-") $tmp[$i]['physical'] = "0" ;
 						$ret += $tmp[$i]['physical'];
-					else
+					} else {
+					    if($tmp[$i]['capacity'] == "-") $tmp[$i]['capacity'] = "0" ;
 						$ret += $tmp[$i]['capacity'];
+					}
 			}
 			unset($tmp);
 
