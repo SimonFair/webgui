@@ -23,7 +23,7 @@
 	require_once "$docroot/webGui/include/Custom.php";
 	require_once "$docroot/plugins/dynamix.vm.manager/include/libvirt_helpers.php";
 
-	$arrValidMachineTypes = getValidMachineTypes();
+	$arrValidMachineTypes = getValidMachineTypes("aarch64");
 	$arrValidGPUDevices = getValidGPUDevices();
 	$arrValidAudioDevices = getValidAudioDevices();
 	$arrValidOtherDevices = getValidOtherDevices();
@@ -49,7 +49,7 @@
 			'persistent' => 1,
 			'uuid' => $lv->domain_generate_uuid(),
 			'clock' => 'localtime',
-			'arch' => 'armv7l',
+			'arch' => 'aarch64',
 			'machine' => 'versatilepb',
 			'mem' => 1024 * 1024,
 			'maxmem' => 1024 * 1024,

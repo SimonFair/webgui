@@ -340,13 +340,9 @@
 	];
 
 	$arrArch = [
-		'armv6l' => [
+		'aarch64' => [
 			'version' => 'arm' ,
-			'binary' => '/usr/bin/qemu-system-arm'
-		],
-		'armv7l' => [
-			'version' => 'arm' ,
-			'binary' => '/usr/bin/qemu-system-arm'
+			'binary' => '/usr/bin/qemu-system-aarch64'
 		],
 		'x86_64' => [
 			'version' => 'arm' ,
@@ -793,15 +789,13 @@
 		return $arrValidUSBDevices;
 	}
 
-	function getValidMachineTypes() {
+	function getValidMachineTypes($arch = 'x86_64') {
 		global $lv;
 
 		$arrValidMachineTypes = [];
 
 		$arrQEMUInfo = $lv->get_connect_information();
-		$arrMachineTypes = $lv->get_machine_types('x86_64');
-		$arrMachineTypes = $lv->get_machine_types('armv7l');
-		#$arrMachineTypes = $lv->get_machine_types('armv6l');
+		$arrMachineTypes = $lv->get_machine_types($arch);
 
 		$strQEMUVersion = $arrQEMUInfo['hypervisor_major'] . '.' . $arrQEMUInfo['hypervisor_minor'];
 
