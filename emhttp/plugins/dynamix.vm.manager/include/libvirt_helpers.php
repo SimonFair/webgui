@@ -2638,7 +2638,7 @@ function get_vm_usage_stats($collectcpustats = true,$collectdiskstats = true,$co
 		$unusedmem = $data["balloon.unused"];
 		$meminuse = $currentmem - $unusedmem;
 		} else $currentmem = $meminuse = 0;
-
+		$wr=$rd=$rx=$tx = null;
 		# Disk
 		if ($state == 1 && $collectdiskstats) {
 			$disknum = $data["block.count"];
@@ -2689,7 +2689,7 @@ function build_xml_templates($strXML) {
 	global $arrValidPCIDevices,$arrValidUSBDevices;
 
 	$xmldevsections = $xmlsections = [];
-	$xml = new SimpleXMLElement($strXML) ;
+	$xmlctl = $xml = new SimpleXMLElement($strXML) ;
 	$x = $xml->children();
 	foreach($x as $key=>$y) {
 		$xmlsections[] = $key;
@@ -2711,55 +2711,83 @@ function build_xml_templates($strXML) {
 		$endpos = strpos($strXML,$endcheck,$strpos);
 		$xml2[$xmlsection] = trim(substr($strXML,$strpos,$endpos-$strpos+strlen($endcheck)),'/0') ;
 	}
-	  
-	$xml = $xml2['devices'];
-	$endpos = 0;
-	foreach($xmldevsections as $xmlsection ) {
-		 $strpos = $count = 0;
-		while (true) {
-			
-			$strpos = strpos($xml,"<$xmlsection",$endpos);
-			if ($strpos === false) continue  2;
-			$endcheck = "</$xmlsection>";
-			$endpos = strpos($xml,$endcheck,$strpos);
-			#echo $xmlsection." ".$strpos." ".$endpos."\n";
-			if ($endpos === false) {
-				$endcheck = "/>";
+	
+	if (isset($xml2['devices'])) {
+		$xml = $xml2['devices'];
+		$endpos = 0;
+		foreach($xmldevsections as $xmlsection ) {
+			$strpos = $count = 0;
+			while (true) {
+				
+				$strpos = strpos($xml,"<$xmlsection",$endpos);
+				if ($strpos === false) continue  2;
+				$endcheck = "</$xmlsection>";
 				$endpos = strpos($xml,$endcheck,$strpos);
-			}
-			# echo substr($xml,$strpos,$endpos-$strpos+strlen($endcheck)) ;
-			if ($xmlsection == "disk") {
-				$disk = substr($xml,$strpos,$endpos-$strpos+strlen($endcheck));
-				$xmldiskdoc = new SimpleXMLElement($disk);
-				$devxml[$xmlsection][$xmldiskdoc->target->attributes()->dev->__toString()] = $disk;
+				#echo $xmlsection." ".$strpos." ".$endpos."\n";
+				if ($endpos === false) {
+					$endcheck = "/>";
+					$endpos = strpos($xml,$endcheck,$strpos);
+				}
+				# echo substr($xml,$strpos,$endpos-$strpos+strlen($endcheck)) ;
+				if ($xmlsection == "disk") {
+					$disk = substr($xml,$strpos,$endpos-$strpos+strlen($endcheck));
+					$xmldiskdoc = new SimpleXMLElement($disk);
+					$devxml[$xmlsection][$xmldiskdoc->target->attributes()->dev->__toString()] = $disk;
 
-			} else {
-				$devxml[$xmlsection][$count] = substr($xml,$strpos,$endpos-$strpos+strlen($endcheck)) ;
+				} else {
+					$devxml[$xmlsection][$count] = substr($xml,$strpos,$endpos-$strpos+strlen($endcheck)) ;
+				}
+				$count++;
 			}
-			$count++;
 		}
+		$xml2["devices"] = $devxml;
+		$xml2["devices"]["allusb"] = "";
+		foreach ($xml2['devices']["hostdev"] as $xmlhostdev) {
+			$xmlhostdevdoc = new SimpleXMLElement($xmlhostdev);
+			switch ($xmlhostdevdoc->attributes()->type) {
+				case 'pci' :
+					$pciaddr = $xmlhostdevdoc->source->address->attributes()->bus.":".$xmlhostdevdoc->source->address->attributes()->slot.".".$xmlhostdevdoc->source->address->attributes()->function;
+					$pciaddr = str_replace("0x","",$pciaddr);
+					$xml2["devices"][$arrValidPCIDevices[$pciaddr]["class"]][$pciaddr] = $xmlhostdev; 
+					break;
+				case "usb":  
+					$usbaddr = $xmlhostdevdoc->source->vendor->attributes()->id.":".$xmlhostdevdoc->source->product->attributes()->id;
+					$usbaddr = str_replace("0x","",$usbaddr);
+					$xml2["devices"]["usb"][$usbaddr] = $xmlhostdev; 
+					$xml2["devices"]["allusb"] .= $xmlhostdev; 
+					break;
+			} 
+		}
+		foreach($xml2["devices"]["input"] as $input) $xml2["devices"]["allinput"] .= "$input\n";  
 	}
-	$xml2["devices"] = $devxml;
-	$xml2["devices"]["allusb"] = "";
-	foreach ($xml2['devices']["hostdev"] as $xmlhostdev) {
-		$xmlhostdevdoc = new SimpleXMLElement($xmlhostdev);
-		switch ($xmlhostdevdoc->attributes()->type) {
-			case 'pci' :
-				$pciaddr = $xmlhostdevdoc->source->address->attributes()->bus.":".$xmlhostdevdoc->source->address->attributes()->slot.".".$xmlhostdevdoc->source->address->attributes()->function;
-				$pciaddr = str_replace("0x","",$pciaddr);
-				$xml2["devices"][$arrValidPCIDevices[$pciaddr]["class"]][$pciaddr] = $xmlhostdev; 
-				break;
-			case "usb":  
-				$usbaddr = $xmlhostdevdoc->source->vendor->attributes()->id.":".$xmlhostdevdoc->source->product->attributes()->id;
-				$usbaddr = str_replace("0x","",$usbaddr);
-				$xml2["devices"]["usb"][$usbaddr] = $xmlhostdev; 
-				$xml2["devices"]["allusb"] .= $xmlhostdev; 
-				break;
-		} 
-	}
-	foreach($xml2["devices"]["input"] as $input) $xml2["devices"]["allinput"] .= "$input\n";  
 
+	$xml2['devices']['controller']['usb'] = join("\n",$xml2['devices']['controller']);
+	$xml2['devices']['controller']['usb'] = join("\n",$xmlctl->xpath("//domain/devices/controller[@type=usb]"));
 	return $xml2;
+}
+
+function build_xml_from_inline($post) {
+
+$xml = $post['xml'];
+$xmldevices=$xml["devices"];
+unset($xml["devices"]);
+$xmlqemu = $xml["qemucmdline"];
+unset($xml["qemucmdline"]);
+$output = "<?xml version='1.0' encoding='UTF-8'?>\n<domain type='kvm' xmlns:qemu='http://libvirt.org/schemas/domain/qemu/1.0'>\n";
+foreach (array_keys($xml) as $key) $output .= $xml[$key]."\n";
+$output .= "<devices>\n";
+foreach (array_keys($xmldevices) as $key) $output .= $xmldevices[$key]."\n";
+$output .= "</devices>\n";
+$output .= $xmlqemu;
+$output .= "\n</domain>";
+
+
+file_put_contents("/tmp/xmlbuild2",$output);
+file_put_contents("/tmp/xmlbuild",json_encode($post,JSON_PRETTY_PRINT));
+$keys[] = array_keys($post["xml"]);
+$keys[] = array_keys($post["xml"]['devices']);
+file_put_contents("/tmp/xmlkeys",json_encode($keys),JSON_PRETTY_PRINT);
+return $output;
 }
 
 function qemu_log($vm,$m) {
@@ -2794,6 +2822,173 @@ function get_vm_ip($dom) {
 		}
 	}
 	return $myIP;
+}
+
+function vm_replace_values($from,$to,$fromvalue,$tovalue,$oldvalue){
+	switch( $from ){
+	case "domain[desc]":
+		$tovalue = "<description>$fromvalue</description>";
+		break;
+	case "xml[description]":
+		$tovalue=vm_get_xml_value($fromvalue,"description");
+		break;
+	case "domain[uuid]":
+		$tovalue = "<uuid>$fromvalue</uuid>";
+		break;
+	case "xml[uuid]":
+		$tovalue=vm_get_xml_value($fromvalue,"uuid");
+		break;
+	case "domain[machine]":
+		$xmlarray = simplexml_load_string("<domain>\n$tovalue\n</domain>");
+		$xmlarray->os->type->attributes()->machine = $fromvalue;
+		$tovalue=$xmlarray->asXML();
+		$tovalue = trim(str_replace(['<?xml version="1.0"?>',"<domain>","</domain>"],["","",""],$tovalue));
+		break;
+	case "xml[os]":
+		$xmlarray = simplexml_load_string("<domain>$fromvalue</domain>");
+		$value["multiple"]["domain[machine]"] = $xmlarray->os->type->attributes()->machine[0]->__toString();
+		$value["multiple"]["domain[arch]"] = $xmlarray->os->type->attributes()->arch[0]->__toString();
+		$loader = $xmlarray->os->loader;
+		$ovmf = 0;
+		if (strpos($loader, '_CODE-pure-efi.fd') !== false) {
+			$ovmf = '1';
+		} else if (strpos($loader, '_CODE-pure-efi-tpm.fd') !== false) {
+			$ovmf = '2';
+		}
+		$value["multiple"]["domain[ovmf]"] = $ovmf;
+		$osboot = $xmlarray->os->boot;
+		if (!empty($osboot))$osboot = $xmlarray->os->boot->attributes()->dev;
+		if ($osboot == "fd")  $value["multiple"]["domain[usbboot]"] = "Yes"; else $value["multiple"]["domain[usbboot]"] = "No";
+		$tovalue = $value;
+		break;
+	case "domain[name]":
+		$xmlarray = simplexml_load_string("<domain>\n$tovalue\n</domain>");
+		$xmlarray->name = $fromvalue;
+		$tovalue=$xmlarray->asXML();
+		$tovalue = trim(str_replace(['<?xml version="1.0"?>',"<domain>","</domain>"],["","",""],$tovalue));
+		break;
+	case "xml[name]":
+		$xmlarray = simplexml_load_string("<domain>$fromvalue</domain>");
+		$value["multiple"]["domain[name]"] = $xmlarray->name->__toString();
+		$value["multiple"]["template[webui]"] = $xmlarray->metadata->vmtemplate->attributes()->webui->__toString();
+		$tovalue = $value;
+		break;
+	case "template[webui]":
+		$xmlarray = simplexml_load_string("<domain>\n$tovalue\n</domain>");
+		$xmlarray->metadata->vmtemplate->attributes()->webui = $fromvalue;
+		$tovalue=$xmlarray->asXML();
+		$tovalue = trim(str_replace(['<?xml version="1.0"?>',"<domain>","</domain>"],["","",""],$tovalue));
+		break;
+	case "domain[usbboot]":
+		$xmlarray = simplexml_load_string("<domain>\n$tovalue\n</domain>");
+		if (!isset($xmlarray->os->boot) && $fromvalue != "No") {
+			$xmlarray->os->addChild("boot");
+		} 		
+		if ($fromvalue == "Yes") 
+		 {
+			if (isset($xmlarray->os->boot->attributes()->dev)) $xmlarray->os->boot->attributes()->dev = "fd"; 
+			else $xmlarray->os->boot->addAttribute("dev", "fd"); 
+		} else unset($xmlarray->os->boot); 
+		
+		$tovalue=$xmlarray->asXML();
+		$tovalue = trim(str_replace(['<?xml version="1.0"?>',"<domain>","</domain>"],["","",""],$tovalue));
+		break;
+	case "domain[ovmf]":
+		$xmlarray = simplexml_load_string("<domain>\n$tovalue\n</domain>");
+		if($fromvalue == 1)	$xmlarray->os->loader = $fromvalue;
+		$tovalue=$xmlarray->asXML();
+		$tovalue = trim(str_replace(['<?xml version="1.0"?>',"<domain>","</domain>"],["","",""],$tovalue));
+		break;
+	case "domain[cpumode]":
+		$vcpus = 1;
+		$vcpupinstr = '';
+
+		if (!empty($domain['vcpu']) && is_array($domain['vcpu'])) {
+			$vcpus = count($domain['vcpu']);
+			foreach($domain['vcpu'] as $i => $vcpu) {
+				$vcpupinstr .= "<vcpupin vcpu='$i' cpuset='$vcpu'/>";
+			}
+		} elseif (!empty($domain['vcpus'])) {
+			$vcpus = $domain['vcpus'];
+			for ($i=0; $i < $vcpus; $i++) {
+				$vcpupinstr .= "<vcpupin vcpu='$i' cpuset='$i'/>";
+			}
+		}
+
+		$intCores = $vcpus;
+		$intThreads = 1;
+		$intCPUThreadsPerCore = 1;
+
+		$cpumode = '';
+		$cpucache = '';
+		$cpufeatures = '';
+		$cpumigrate = '';
+		if (!empty($domain['cpumode']) && $domain['cpumode'] == 'host-passthrough') {
+			$cpumode .= "mode='host-passthrough'";
+			$cpucache = "<cache mode='passthrough'/>";
+
+			// detect if the processor is hyperthreaded:
+			$intCPUThreadsPerCore = max(intval(shell_exec('/usr/bin/lscpu | grep \'Thread(s) per core\' | awk \'{print $4}\'')), 1);
+
+			// detect if the processor is AMD + multithreaded, and if so, enable topoext cpu feature
+			if ($intCPUThreadsPerCore > 1) {
+				$strCPUInfo = file_get_contents('/proc/cpuinfo');
+				if (strpos($strCPUInfo, 'AuthenticAMD') !== false) {
+					$cpufeatures .= "<feature policy='require' name='topoext'/>";
+				}
+			}
+
+			// even amount of cores assigned and cpu is hyperthreaded: pass that info along to the cpu section below
+			if ($intCPUThreadsPerCore > 1 && ($vcpus % $intCPUThreadsPerCore == 0)) {
+				$intCores = $vcpus / $intCPUThreadsPerCore;
+				$intThreads = $intCPUThreadsPerCore;
+			}
+
+			if (!empty($domain['cpumigrate'])) $cpumigrate = " migratable='".$domain['cpumigrate']."'" ;
+		}
+
+		$cpustr = "<cpu $cpumode $cpumigrate>
+						<topology sockets='1' cores='{$intCores}' threads='{$intThreads}'/>
+						$cpucache
+						$cpufeatures
+					</cpu>
+					<vcpu placement='static'>{$vcpus}</vcpu>
+					<cputune>
+						$vcpupinstr
+					</cputune>";
+	case "domain[cpumigrate]":
+	case "domain[maxmem]":
+
+		$xmlarray = simplexml_load_string("<domain>\n$tovalue\n</domain>");
+		$xmlarray->memory = $fromvalue;
+		$tovalue=$xmlarray->asXML();
+		$tovalue = trim(str_replace(['<?xml version="1.0"?>',"<domain>","</domain>"],["","",""],$tovalue));
+		break;
+	case "domain[mem]":	
+		$xmlarray = simplexml_load_string("<domain>\n$tovalue\n</domain>");
+		$xmlarray->currentMemory = $fromvalue;
+		$tovalue=$xmlarray->asXML();
+		$tovalue = trim(str_replace(['<?xml version="1.0"?>',"<domain>","</domain>"],["","",""],$tovalue));
+		break;
+
+	case "xml[memory]":
+		$xmlarray = simplexml_load_string("<domain>$fromvalue</domain>");
+		$value["multiple"]["domain[mem]"] = $xmlarray->currentMemory->__toString();
+		$value["multiple"]["domain[maxmem]"] = $xmlarray->memory->__toString();
+		$tovalue = $value;
+		break;
+	}
+
+	$arrResponse = ['success' => true,"value" => $tovalue];
+	return $arrResponse;
+}
+
+function vm_get_xml_value($xml,$attribute) {
+
+	$simplexml = "<document>$xml</document>";	
+	$xmlarray = simplexml_load_string($simplexml);
+	return $xmlarray->{$attribute}->__toString();
+
 }
 
 ?>

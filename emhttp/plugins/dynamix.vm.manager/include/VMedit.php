@@ -99,6 +99,7 @@ if (strpos($strSelectedTemplate,"User-") !== false) {
 	$strSelectedTemplateUT = str_replace("User-","",$strSelectedTemplateUT); 
 	$usertemplate = 1;
 }
+if ($_GET['type'] == "'1'") $arrLoad['form'] = "Custom.form.xml.php";
 ?>
 <link type="text/css" rel="stylesheet" href="<?autov('/plugins/dynamix.vm.manager/styles/dynamix.vm.manager.css')?>">
 <link type="text/css" rel="stylesheet" href="<?autov('/webGui/styles/jquery.filetree.css')?>">

@@ -194,7 +194,8 @@ function addVMContext(name, uuid, template, state, vmrcurl, vmrcprotocol, log, f
   if (log !== "") {
     opts.push({text:_("Logs"), icon:"fa-navicon", action:function(e){e.preventDefault(); openTerminal('log',name,log);}});
   }
-  opts.push({text:_("Edit"), icon:"fa-pencil", href:path+'/UpdateVM?uuid='+uuid});
+  opts.push({text:_("Edit"), icon:"fa-pencil", href:path+'/UpdateVM?uuid='+uuid+"&type='0'"});
+  opts.push({text:_("Edit Inline(Prototype)"), icon:"fa-pencil", href:path+'/UpdateVM?uuid='+uuid+"&type='1'"});
 
   if (state == "shutoff") {
 

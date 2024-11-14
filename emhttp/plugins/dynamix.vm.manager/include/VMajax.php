@@ -769,6 +769,10 @@ case 'vm-template-remove':
 	$arrResponse = ['success' => true];
 	break;
 
+case "vm-field-updates":
+	$arrResponse = vm_replace_values($_REQUEST['fromclass'],$_REQUEST['toclass'],$_REQUEST['fromclassvalue'],$_REQUEST['toclassvalue'],$_REQUEST['oldclassvalue']);
+	break;
+
 default:
 	$arrResponse = ['error' => _('Unknown action')." '$action'"];
 	break;
