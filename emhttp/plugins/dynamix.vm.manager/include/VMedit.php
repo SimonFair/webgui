@@ -114,7 +114,7 @@ if ($_GET['type'] == "'1'") $arrLoad['form'] = "Custom.form.xml.php";
 	<table>
 		<tr>
 			<td>_(Icon)_:</td>
-			<td>
+			<td class="template_img_parent">
 				<input type="hidden" name="template[icon]" id="template_icon" value="<?=htmlspecialchars($arrLoad['icon'])?>" />
 				<img id="template_img" src="<?=htmlspecialchars($strIconURL)?>" width="48" height="48" title="_(Change Icon)_..."/>
 				<div id="template_img_chooser_outer">
@@ -190,13 +190,13 @@ $(function() {
 	});
 
 	$('.advancedview').switchButton({
-		labels_placement: "left",
+		labels_placement: "right",
 		on_label: "_(XML View)_",
 		off_label: "_(Form View)_",
 		checked: isVMXMLMode()
 	});
 	$('.inlineview').switchButton({
-		labels_placement: "left",
+		labels_placement: "right",
 		off_label: "_(Hide inline xml)_",
 		on_label: "_(Show Inline XML)_",
 		checked: isinlineXMLMode()

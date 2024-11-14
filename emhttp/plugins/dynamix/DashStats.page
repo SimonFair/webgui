@@ -1,5 +1,5 @@
 Menu="Dashboard"
-Nchan="wg_poller,update_1,update_2,update_3,ups_status:stop,vm_dashusage:stop"
+Nchan="wg_poller,update_1,update_2,update_3,ups_status:stop,vm_dashusage"
 ---
 <?PHP
 /* Copyright 2005-2023, Lime Technology * Copyright 2012-2023, Bergware International.
@@ -69,7 +69,7 @@ $cache_type = $cache_rate = [];
 
 $parity = _var($var,'mdResync');
 $mover = file_exists('/var/run/mover.pid');
-$btrfs = exec('pgrep -cf /sbin/btrfs');
+$btrfs = exec('pgrep --ns $$ -cf /sbin/btrfs');
 $vdisk = exec("grep -Pom1 '^DOCKER_IMAGE_TYPE=\"\\K[^\"]+' /boot/config/docker.cfg 2>/dev/null")!='folder' ? _('Docker vdisk') : _('Docker folder');
 $dot = _var($display,'number','.,')[0];
 $zfs = count(array_filter(array_column($disks,'fsType'),function($fs){return str_replace('luks:','',$fs??'')=='zfs';}));
@@ -79,7 +79,7 @@ $domain_cfg = parse_ini_file($domain_cfgfile);
 if (!isset($domain_cfg['USAGE'])) $vmusage = "N" ; else $vmusage = $domain_cfg['USAGE'];
 
 // enable/disable graph elements by making hook script executable or not
-chmod("$docroot/webGui/system/VM_usage",$libvirtd ? 0755 : 0644);
+chmod("$docroot/webGui/system/VM",$libvirtd ? 0755 : 0644);
 chmod("$docroot/webGui/system/ZFS_cache",$zfs ? 0755 : 0644);
 
 foreach ($disks as $disk) {
@@ -647,11 +647,11 @@ table.find('tbody').not('.system').each(function(){
   sort.push($(this).attr('sort'));
   checked.push($(this).is(':visible') ? 'checked' : '');
 });
-for (var n=0,x; x=index[n]; n++) {
+for (let n=0,x; x=index[n]; n++) {
   $('div#list').append("<span class='item'><input class='checker' type='checkbox' "+checked[n]+">"+x+"</span>");
 }
 function hideShow() {
-  var n = 0, inactive = [];
+  let n = 0, inactive = [];
   var count = {'db-box1':0, 'db-box2':0, 'db-box3':0};
   $('input.checker').each(function(){
     var tbody = $('table.dashboard').find('tbody[sort="'+sort[n]+'"]');
@@ -774,7 +774,7 @@ jQuery.prototype.mixedView = function(s) {
     select = parseInt(select.val())+1;
     this.find('tr:gt(0)').each(function(){
       var names = ($(this).attr('class')||'').split(' ');
-      for (var n=0,name; name=names[n]; n++) if (/[0-9]/.test(name.slice(-1)) && name.slice(-1)!=select) $(this).hide();
+      for (let n=0,name; name=names[n]; n++) if (/[0-9]/.test(name.slice(-1)) && name.slice(-1)!=select) $(this).hide();
     });
   }
 }
@@ -1049,7 +1049,7 @@ function portSelect(name) {
 }
 function moreInfo(data,table) {
   var info = [];
-  if (data[1]>0) info.push(data[1]+' '+(data[1]==1 ? "_(failed device)_" : "_(failed devices)_"));
+  if (data[1]>0) info.push(data[1]+' '+(data[1]==1 ? "_(device warning)_" : "_(device warnings)_"));
   if (data[2]>0) info.push(data[2]+' '+(data[2]==1 ? "_(heat warning)_" : "_(heat warnings)_"));
   if (data[3]>0) info.push(data[3]+' '+(data[3]==1 ? "_(SMART error)_" : "_(SMART errors)_"));
   if (data[4]>0) info.push(data[4]+' '+(data[4]==1 ? "_(utilization warning)_" : "_(utilization warnings)_"));
@@ -1188,6 +1188,7 @@ function SleepNow() {
 function sortTables() {
   $('table.dashboard').each(function(){
     var table = $(this);
+    sanitizeMultiCookie(table.prop('id'), ';', true);
     var index = $.cookie(table.prop('id'));
     // sorting list exists
     if (index != null) {
@@ -1236,7 +1237,7 @@ function showContent() {
   var inactive = $.cookie('inactive_content');
   if (inactive) {
     inactive = inactive.split(';');
-    for (var n=0,md5; md5=inactive[n]; n++) {
+    for (let n=0,md5; md5=inactive[n]; n++) {
       var tbody = $('table.dashboard tbody[sort="'+md5+'"]');
       var id = tbody.parent().prop('id');
       count[id]--;
@@ -1248,7 +1249,7 @@ function showContent() {
   var hidden = $.cookie('hidden_content');
   if (hidden) {
     hidden = hidden.split(';');
-    for (var n=0,md5; md5=hidden[n]; n++) {
+    for (let n=0,md5; md5=hidden[n]; n++) {
       var tbody = $('div.frame tbody[sort="'+md5+'"]');
       tbody.find('.openclose').removeClass('fa-chevron-up fa-chevron-down').addClass('fa-chevron-down');
       tbody.find('tr:gt(0)').hide();
@@ -1666,7 +1667,7 @@ dashboard.on('message',function(msg,meta) {
   case 4:
     // wireguard tunnels
     var get = JSON.parse(msg);
-    var n = {};
+    let n = {};
     for (var i=0,info; info=get[i]; i++) {
       var vtun = info[0];
       if (typeof n[vtun]=='undefined') n[vtun]=0; else n[vtun]++;

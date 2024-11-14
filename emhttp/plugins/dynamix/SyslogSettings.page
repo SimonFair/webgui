@@ -110,9 +110,9 @@ _(Local syslog folder)_:
 
 _(System identifier for logfile name)_:
 : <select name="server_filename">
-  <?=mk_option($syslog['server_filename'], "syslog-%FROMHOST-IP%.log", _("IP Address"))?>
-  <?=mk_option($syslog['server_filename'], "syslog-%HOSTNAME%.log", _("Hostname (from syslog message)"))?>
-  <?=mk_option($syslog['server_filename'], "syslog-%FROMHOST%.log", _("Hostname (from DNS reverse lookup)"))?>
+  <?=mk_option(_var($syslog, 'server_filename'), "syslog-%FROMHOST-IP%.log", _("IP Address"))?>
+  <?=mk_option(_var($syslog, 'server_filename'), "syslog-%HOSTNAME%.log", _("Hostname (from syslog message)"))?>
+  <?=mk_option(_var($syslog, 'server_filename'), "syslog-%FROMHOST%.log", _("Hostname (from DNS reverse lookup)"))?>
   </select>
 
 :syslog_remote_system_identifier_help:

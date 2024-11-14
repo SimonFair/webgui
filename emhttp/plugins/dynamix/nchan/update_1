@@ -59,7 +59,7 @@ while (true) {
   exec("sensors -uA 2>/dev/null|grep -Po 'fan\d_input: \K\d+'",$fans);
   [$total,$free] = $memory;
   $used  = $total-$free;
-  $names = [_('Services'),_('Free')];
+  $names = [_('System'),_('Free')];
   $bytes = $echo = [];
   $hooks = array_filter(glob("/usr/local/emhttp/plugins/*/system/*",GLOB_NOSORT),function($file){return is_executable($file);});
   foreach ($hooks as $hook) {

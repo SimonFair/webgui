@@ -529,7 +529,12 @@ $theme_dark = in_array($display['theme'], ['black', 'gray']);
                         cookieEnabled = document.cookie.indexOf("cookietest=")!=-1;
                         document.cookie = "cookietest=1; expires=Thu, 01-Jan-1970 00:00:01 GMT";
                         if (!cookieEnabled) {
-                            document.write("<p class='error'><?=_('Browser cookie support required for Unraid OS webgui')?></p>");
+                            const errorElement = document.createElement('p');
+                            errorElement.classList.add('error');
+                            errorElement.textContent = "<?=_('Please enable cookies to use the Unraid webGUI')?>";
+
+                            document.body.textContent = '';
+                            document.body.appendChild(errorElement);
                         }
                     </script>
                 </form>
@@ -543,7 +548,7 @@ $theme_dark = in_array($display['theme'], ['black', 'gray']);
             </div>
 
             <? if (($twoFactorRequired && !empty($token)) || !$twoFactorRequired) { ?>
-                <p class="js-removeTimeout"><a href="https://docs.unraid.net/unraid-os/manual/troubleshooting#lost-root-password" target="_blank"><?=_('Password recovery')?></a></p>
+                <p class="js-removeTimeout"><a href="https://docs.unraid.net/go/lost-root-password/" target="_blank"><?=_('Password recovery')?></a></p>
             <? } ?>
 
         </div>

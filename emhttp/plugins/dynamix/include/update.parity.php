@@ -63,7 +63,7 @@ if (isset($_POST['#apply'])) {
         break;
     }
     $cron[] = "# Generated parity check schedule:";
-    if ($_POST['cumulative']==1) {
+    if (isset($_POST['cumulative']) && $_POST['cumulative']==1) {
       [$m, $h] = explode(' ',$time);
       $h = ($h + $_POST['duration']) % 24;
       if ($_POST['frequency']==7) {

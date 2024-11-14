@@ -91,14 +91,17 @@ if (file_exists("/var/run/apcupsd.pid")) {
     if ($i%2==1) $result[] = "</tr>";
   }
   if (count($rows)%2==1) $result[] = "<td></td><td></td></tr>";
+
+  // If the override is defined, override the power value, using the same implementation as above.
+  // This is a better implementation, as it allows the existing Unraid code to work with the override.
+  if ($overrideUpsCapacity > 0) {
+    $power = $overrideUpsCapacity;
+    $status[4] = $power>0 ? "<td $green>$power W</td>" : "<td $red>$power W</td>";
+  }
+
   if ($power && isset($load)) $status[5] = ($load<90 ? "<td $green>" : "<td $red>").round($power*$load/100)." W (".$status[5].")</td>";
   elseif (isset($load)) $status[5] = ($load<90 ? "<td $green>" : "<td $red>").$status[5]."</td>";
   $status[6] = isset($output) ? ((!$volt || ($minv<$output && $output<$maxv) ? "<td $green>" : "<td $red>").$status[6].(isset($freq) ? " ~ $freq Hz" : "")."</td>") : $status[6];
-
-  if ($status[4] == $defaultCell && $overrideUpsCapacity > 0 && isset($load) && $load > 0) {
-    $nominalPower = round($load * 0.01 * $overrideUpsCapacity);
-    $status[4] = ($nominalPower > 0 ? "<td $green>" : "<td $red>") . "≈ $nominalPower W</td>";
-  }
 }
 if (empty($rows)) $result[] = "<tr><td colspan='4' style='text-align:center'>"._('No information available')."</td></tr>";
 

@@ -582,7 +582,7 @@ function viewHistory() {
 }
 function flashReport() {
   $.post('/webGui/include/Report.php',{cmd:'config'},function(check){
-    if (check>0) addBannerWarning("<?=_('Your flash drive is corrupted or offline').'. '._('Post your diagnostics in the forum for help').'.'?> <a target='_blank' href='https://docs.unraid.net/unraid-os/manual/changing-the-flash-device'><?=_('See also here')?></a>");
+    if (check>0) addBannerWarning("<?=_('Your flash drive is corrupted or offline').'. '._('Post your diagnostics in the forum for help').'.'?> <a target='_blank' href='https://docs.unraid.net/go/changing-the-flash-device/'><?=_('See also here')?></a>");
   });
 }
 $(function() {
@@ -803,7 +803,7 @@ default:
 }
 echo "</span></span><span id='countdown'></span><span id='user-notice' class='red-text'></span>";
 echo "<span id='copyright'>Unraid&reg; webGui &copy;2024, Lime Technology, Inc.";
-echo " <a href='https://docs.unraid.net/category/manual' target='_blank' title=\""._('Online manual')."\"><i class='fa fa-book'></i> "._('manual')."</a>";
+echo " <a href='https://docs.unraid.net/go/manual/' target='_blank' title=\""._('Online manual')."\"><i class='fa fa-book'></i> "._('manual')."</a>";
 echo "</span></div>";
 ?>
 <script>
@@ -1110,6 +1110,44 @@ $(function() {
     });
   }
   $('form').append($('<input>').attr({type:'hidden', name:'csrf_token', value:csrf_token}));
+});
+
+$('body').on("click","a", function(e) {
+  href = $(this).attr("href").trim();
+  target = $(this).attr("target");
+
+  if ( href ) {
+    if ( href.indexOf("/") == 0 ) {   // all internal links start with "/"
+      return;
+    }
+    if ( href.match('https://[^\.]*.(my)?unraid.net/') || href.indexOf("https://unraid.net/") == 0 || href == "https://unraid.net" || href.indexOf("http://lime-technology.com/") == 0) {
+      return;
+    } else {
+      if (href !== "#" && href.indexOf("javascript") !== 0) {
+        e.preventDefault();
+        swal({
+          title: "<?=_('External Link')?>",
+          text: "<?=_('Clicking OK will take you to a 3rd party website not associated with Limetech')?><br><br><b>"+href,
+          html: true,
+          type: 'warning',
+          showCancelButton: true,
+          showConfirmButton: true,
+          cancelButtonText: "<?=_('Cancel')?>",
+          confirmButtonText: "<?=_('OK')?>"
+        },function(isConfirm) {
+          if (isConfirm) {
+            var popupOpen = window.open(href,target);
+            if ( !popupOpen || popupOpen.closed || typeof popupOpen == "undefined" ) {
+              var popupWarning = addBannerWarning("<?=_('Popup Blocked.');?>");
+              setTimeout(function() {
+                removeBannerWarning(popupWarning);}
+              ,10000);
+            }
+          }
+        });
+      }
+    }
+  }
 });
 </script>
 </body>

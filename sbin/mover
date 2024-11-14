@@ -23,22 +23,17 @@
 # operation continues on to the next file.
 
 PIDFILE="/var/run/mover.pid"
-CFGFILE="/boot/config/share.cfg"
 DEBUGGING=""
+
+move() {
+  /usr/bin/find "$1" -depth 2>/dev/null | /usr/libexec/unraid/move $DEBUGGING
+}
 
 start() {
   if [ -f $PIDFILE ]; then
     if ps h $(cat $PIDFILE) | grep mover ; then
         echo "mover: already running"
         exit 1
-    fi
-  fi
-
-  if [ -f $CFGFILE ]; then
-    # Only start if shfs includes pools
-    if ! grep -qs 'shareCacheEnabled="yes"' $CFGFILE ; then
-      echo "mover: cache not enabled"
-      exit 2
     fi
   fi
 
@@ -49,22 +44,38 @@ start() {
 
   for SHARECFG in /boot/config/shares/*.cfg ; do
     SHARE=$(basename "$SHARECFG" .cfg)
-    [[ "$SHARE" == *~* ]] && continue
     source <(fromdos < "$SHARECFG")
+
     # maybe move from primary to secondary
-    if [[ $shareUseCache = yes ]]; then
-      find "/mnt/$shareCachePool/$SHARE" -depth 2>/dev/null | /usr/libexec/unraid/move $DEBUGGING
+    if [[ $shareUseCache = yes && -n $shareCachePool && -d "/mnt/$shareCachePool/$SHARE" ]]; then
+      if [[ -n $shareCachePool2 ]]; then
+        # secondary is a pool
+        if [[ -d "/mnt/$shareCachePool2" ]]; then
+          move "/mnt/$shareCachePool/$SHARE"
+        fi
+      else
+        # secondary is the unRAID array, ensure at least one data disk is present
+        disks=(/mnt/disk[1-9]/ /mnt/disk[1-9][0-9]/)
+        if [[ ${#disks[@]} -gt 0 ]]; then
+          move "/mnt/$shareCachePool/$SHARE"
+        fi
+      fi
     fi
+
     # maybe move from secondary to primary
     if [[ $shareUseCache = prefer ]]; then
       if [[ -n $shareCachePool2 ]]; then
-        # secondary is a pool
-        find "/mnt/$shareCachePool2/$SHARE" -depth 2>/dev/null | /usr/libexec/unraid/move $DEBUGGING
+        # secondary is a pool (primary is also a pool)
+        if [[ -d "/mnt/$shareCachePool2/$SHARE" && -n $shareCachePool && -d "/mnt/$shareCachePool" ]]; then
+          move "/mnt/$shareCachePool2/$SHARE"
+        fi
       else
         # secondary is the unRAID array
-        for SHAREPATH in /mnt/disk[0-9]*/$SHARE; do
-          find "$SHAREPATH" -depth 2>/dev/null | /usr/libexec/unraid/move $DEBUGGING
-        done
+        if [[ -n $shareCachePool && -d "/mnt/$shareCachePool" ]]; then
+          for SHAREPATH in /mnt/disk[1-9]/$SHARE/ /mnt/disk[1-9][0-9]/$SHARE/ ; do
+            move "$SHAREPATH"
+          done
+        fi
       fi
     fi
   done
@@ -87,7 +98,9 @@ empty() {
   shopt -s nullglob
 
   for SHAREPATH in /mnt/$DISK/* ; do
-    find "$SHAREPATH" -depth 2>/dev/null | /usr/libexec/unraid/move -e $DEBUGGING
+    if [[ -d "$SHAREPATH" ]]; then
+      find "$SHAREPATH" -depth 2>/dev/null | /usr/libexec/unraid/move -e $DEBUGGING
+    fi
   done
 
   # output list of files which could not be moved
@@ -104,7 +117,7 @@ empty() {
 killtree() {
   local pid=$1 child
     
-  for child in $(pgrep -P $pid); do
+  for child in $(pgrep --ns $$ -P $pid); do
     killtree $child
   done
   [ $pid -ne $$ ] && kill -TERM $pid

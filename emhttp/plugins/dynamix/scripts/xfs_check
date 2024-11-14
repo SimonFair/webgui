@@ -18,13 +18,16 @@ mkdir -p /var/lib/xfs
 case "$1" in
 'start')
 	# Start the xfs_repair process in the background and log output
-	nohup bash -c "(
-		/sbin/xfs_repair $4 $2 &> /var/lib/xfs/check.status.$3
-		echo \$? > /var/lib/xfs/check.status.$3.exit
-		rm -f /var/lib/xfs/check.pid.$3
-	) &" &
+	/sbin/xfs_repair $4 $2 &> /var/lib/xfs/check.status.$3 &
 	pid=$!
 	echo $pid > /var/lib/xfs/check.pid.$3
+
+    # Wait for xfs_repair to complete synchronously
+    wait "$pid"
+
+    # Capture the exit code of xfs_repair
+	echo $? > /var/lib/xfs/check.status.$3.exit
+
 	exit 0
 ;;
 'status')

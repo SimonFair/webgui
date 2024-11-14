@@ -19,7 +19,7 @@ Cond="exec(\"grep -o '^USAGE=.Y' /boot/config/domain.cfg 2>/dev/null\") && is_fi
 $docroot ??= ($_SERVER['DOCUMENT_ROOT'] ?: '/usr/local/emhttp');
 ?>
 <table id="vmstats" class="tablesorter four shift">
-    <thead class='child'><tr><th class="th1">_(Name)_</th><th class="th2">_(Guest CPU)_</th><th>_(Host CPU)_</th><th>_(Memory)_</th><th>_(Disk IO)_</th><th>_(Network IO)_</th></tr></thead>
+    <thead class='child'><tr><th class="th1">_(Name)_</th><th class="th2">_(Guest CPU)_</th><th>_(Host CPU)_</th><th>_(Memory inuse/Current/Maximum)_</th><th>_(Disk IO)_</th><th>_(Network IO)_</th></tr></thead>
     <tbody id ="vmstatsbody" class='child'>
   </tbody>
 </table>

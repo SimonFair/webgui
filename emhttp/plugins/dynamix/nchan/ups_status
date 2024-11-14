@@ -119,14 +119,17 @@ while (true) {
         break;
       }
     }
+
+    // If the override is defined, override the power value, using the same implementation as above.
+    // This is a better implementation, as it allows the existing Unraid code to work with the override.
+    if ($overrideUpsCapacity > 0) {
+      $power = $overrideUpsCapacity;
+      $echo[4] = $power>0 ? "<span $green>$power W</span>" : "<span $red>$power W</span>";
+    }
+
     if (isset($power) && isset($load)) $echo[5] = ($load<90 ? "<span $green>" : "<span $red>").round($power*$load/100)." W (".$echo[5].")</span>";
     elseif (isset($load)) $echo[5] = ($load<90 ? "<span>" : "<span $red>").$echo[5]."</span>";
     $echo[6] = isset($output) ? ((empty($volt) || ($minv<$output && $output<$maxv) ? "<span $green>" : "<span $red>").$echo[6].(isset($freq) ? " ~ $freq Hz" : "")."</span>") : $echo[6];
-
-    if ($echo[4] == $defaultCell && $overrideUpsCapacity > 0 && isset($load) && $load > 0) {
-      $nominalPower = round($load * 0.01 * $overrideUpsCapacity);
-      $echo[4] = ($nominalPower > 0 ? "<span $green>" : "<span $red>") . "≈ $nominalPower W</span>";
-    }
   }
   $echo = json_encode($echo);
   $md5_new = md5($echo,true);

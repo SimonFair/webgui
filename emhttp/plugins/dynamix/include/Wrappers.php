@@ -128,6 +128,9 @@ function no_tilde($name) {
 function prefix($key) {
   return preg_replace('/\d+$/','',$key);
 }
+function pool_name($key) {
+  return preg_replace('/(\d+$|~.*$)/', '', $key);
+}
 function native($name, $full=0) {
   global $_tilde_, $_arrow_;
   switch ($full) {

@@ -87,8 +87,9 @@ function apply() {
 	sleep(1);
 
 	/* Now run the proxy setup script. */
-	if (is_executable("/usr/local/sbin/set_proxy")) {
-		exec("/usr/local/sbin/set_proxy 1>/dev/null");
+	$set_proxy	= "/usr/local/emhttp/plugins/dynamix/scripts/set_proxy";
+	if (is_executable($set_proxy)) {
+		exec($set_proxy." 1>/dev/null");
 
 		outgoingproxy_log("'set_proxy' script executed");
 	} else {

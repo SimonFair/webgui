@@ -3,7 +3,7 @@ function displayconsole(url) {
 }
 
 function displayWebUI(url) {
-  window.open(url, '', 'scrollbars=yes,resizable=yes');
+  window.open(url, '_blank').focus();
 }
 
 function downloadFile(source) {
@@ -249,7 +249,7 @@ function addVMSnapContext(name, uuid, template, state, snapshotname, method){
   if (x!=-1) path = path.substring(0,x);
 
   context.settings({right:false,above:false});
-  if (state == "running") {
+
 
     opts.push({text:_("Revert snapshot"), icon:"fa-fast-backward", action:function(e) {
       e.preventDefault();
@@ -268,13 +268,7 @@ function addVMSnapContext(name, uuid, template, state, snapshotname, method){
       selectblock(uuid, name, snapshotname, "pull",true) ;
     }});
   }
-  } else {
-    opts.push({text:_("Revert snapshot"), icon:"fa-fast-backward", action:function(e) {
-      e.preventDefault();
-      $('#vm-'+uuid).find('i').removeClass('fa-play fa-square fa-pause').addClass('fa-refresh fa-spin');
-      selectsnapshot(uuid, name, snapshotname, "revert",true,state,method) ;
-    }});
-  }
+
   opts.push({text:_("Remove snapshot"), icon:"fa-trash", action:function(e) {
     e.preventDefault();
     $('#vm-'+uuid).find('i').removeClass('fa-play fa-square fa-pause').addClass('fa-refresh fa-spin');

@@ -1091,6 +1091,15 @@ private static $encoding = 'UTF-8';
 		return $arrValidDiskBuses;
 	}
 
+	function getValidDiskDiscard() {
+		$arrValidDiskDiscard = [
+			'ignore' => 'Ignore(No Trim)',
+			'unmap' => 'Unmap(Trim)',
+		];
+
+		return $arrValidDiskDiscard;
+	}
+
 	function getValidCdromBuses() {
 		$arrValidCdromBuses = [
 			'scsi' => 'SCSI',
@@ -1106,6 +1115,7 @@ private static $encoding = 'UTF-8';
 		$arrValidVNCModels = [
 			'cirrus' => 'Cirrus',
 			'qxl' => 'QXL (best)',
+			'virtio' => 'Virtio(2d)',
 			'vmvga' => 'vmvga'
 		];
 
@@ -1316,6 +1326,7 @@ private static $encoding = 'UTF-8';
 				'driver' => $disk['type'],
 				'dev' => $disk['device'],
 				'bus' => $disk['bus'],
+				'discard' => $disk['discard'],
 				'boot' => $disk['boot order'],
 				'rotation' => $disk['rotation'],
 				'serial' => $disk['serial'],
@@ -1330,6 +1341,7 @@ private static $encoding = 'UTF-8';
 				'dev' => 'hda',
 				'select' => '',
 				'bus' => 'virtio',
+				'discard' => 'ignore',
 				'rotation' => "0"
 			];
 		}
@@ -1457,7 +1469,12 @@ private static $encoding = 'UTF-8';
 		// preserve existing disk driver settings
 		foreach ($new['devices']['disk'] as $key => $disk) {
 			$source = $disk['source']['@attributes']['file'];
-			foreach ($old['devices']['disk'] as $k => $d) if ($source==$d['source']['@attributes']['file']) $new['devices']['disk'][$key]['driver']['@attributes'] = $d['driver']['@attributes'];
+			if (isset($disk['driver']['@attributes']['discard'])) $discard = $disk['driver']['@attributes']['discard']; else $discard = null;
+			foreach ($old['devices']['disk'] as $k => $d) 
+				if ($source==$d['source']['@attributes']['file']) { 
+					if (isset($discard)) $d['driver']['@attributes']['discard'] = $discard;
+					$new['devices']['disk'][$key]['driver']['@attributes'] = $d['driver']['@attributes'];
+				}
 		}
 		// settings not in the GUI, but maybe customized
 		unset($old['clock']);
@@ -1726,12 +1743,16 @@ private static $encoding = 'UTF-8';
 
 		$files_exist = false ;
 		$files_clone = array() ;
+		if ($config['disk'][0]['new'] != "") {
 		foreach ($config["disk"] as $diskid => $disk) {
 			$file_clone[$diskid]["source"] = $config["disk"][$diskid]["new"] ;
 			$config["disk"][$diskid]["new"] = str_replace($vm,$clone,$config["disk"][$diskid]["new"]) ;
 			$pi = pathinfo($config["disk"][$diskid]["new"]) ;
 			$isdir = is_dir($pi['dirname']) ;
 			if (is_file($config["disk"][$diskid]["new"])) $file_exists = true ;
+			write("addLog\0".htmlspecialchars("Checking from file:".$file_clone[$diskid]["source"]));
+			write("addLog\0".htmlspecialchars("Checking to file:".$config["disk"][$diskid]["new"]));
+			write("addLog\0".htmlspecialchars("File exists value:". ($file_exists ? "True" : "False")));
 			$file_clone[$diskid]["target"] = $config["disk"][$diskid]["new"] ;
 			}
 
@@ -1761,6 +1782,7 @@ private static $encoding = 'UTF-8';
 			$error = execCommand_nchan_clone($cmdstr,$target,$refcmd) ;
 			if (!$error) { write("addLog\0".htmlspecialchars("Image copied failed."));  return( false) ; }
 		}
+	}
 
 		write("<p class='logLine'></p>","addLog\0<fieldset class='docker'><legend>"._("Completing Clone").": </legend><p class='logLine'></p><span id='wait-$waitID'></span></fieldset>");
 		write("addLog\0".htmlspecialchars("Creating new XML $clone"));
@@ -2363,7 +2385,14 @@ OPTIONS
 
   blockcommit Debian --path /mnt/user/domains/Debian/vdisk1.S20230513120410qcow2 --verbose --pivot --delete
   */
-	  # Error if VM Not running.
+	#Get VM State. If shutdown start as paused.
+	$res = $lv->get_domain_by_name($vm);
+	$dom = $lv->domain_get_info($res);
+	$state = $lv->domain_state_translate($dom['state']);
+	if ($state == "shutoff") {
+		$lv->domain_start($res);
+		$lv->domain_suspend($res);
+	}
 
 	  $snapslist= getvmsnapshots($vm) ;
 	  $disks =$lv->get_disk_stats($vm) ;
@@ -2409,6 +2438,9 @@ OPTIONS
 	  }
 	  # Delete NVRAM
 	  #if (!empty($lv->domain_get_ovmf($res))) $nvram = $lv->nvram_delete_snapshot($lv->domain_get_uuid($vm),$snap) ;
+	  if ($state == "shutoff") {
+		$lv->domain_destroy($res);
+	  }
 
 	  refresh_snapshots_database($vm) ;
 	  $ret = $ret = delete_snapshots_database("$vm","$snap") ; ;
@@ -2446,6 +2478,15 @@ OPTIONS
 
 
   */
+  #Get VM State. If shutdown start as paused.
+  $res = $lv->get_domain_by_name($vm);
+  $dom = $lv->domain_get_info($res);
+  $state = $lv->domain_state_translate($dom['state']);
+  if ($state == "shutoff") {
+	$lv->domain_start($res);
+  	$lv->domain_suspend($res);
+  }
+
   $snapslist= getvmsnapshots($vm) ;
   $disks =$lv->get_disk_stats($vm) ;
   foreach($disks as $disk)   {
@@ -2464,40 +2505,44 @@ OPTIONS
   $snaps_json=json_encode($snaps,JSON_PRETTY_PRINT) ;
   $pathinfo =  pathinfo($file) ;
   $dirpath = $pathinfo["dirname"] ;
-  file_put_contents("$dirpath/image.tracker",$snaps_json) ;
+  #file_put_contents("$dirpath/image.tracker",$snaps_json) ;
 
   foreach($disks as $disk)   {
-  $path = $disk['file'] ;
-  $cmdstr = "virsh blockpull '$vm' --path '$path' --verbose --pivot --delete" ;
-  $cmdstr = "virsh blockpull '$vm' --path '$path' --verbose --wait " ;
-  # Process disks and update path.
-  $snapdisks=($snapslist[$snap]['disks']) ;
-  if ($base != "--base" && $base != "") {
-	  #get file name from  snapshot.
-	  $snapdisks=($snapslist[$base]['disks']) ;
-	  $basepath = "" ;
-	  foreach ($snapdisks as $snapdisk) {
-		  $diskname = $snapdisk["@attributes"]["name"] ;
-		  if ($diskname != $disk['device']) continue ;
-		  $basepath = $snapdisk["source"]["@attributes"]["file"] ;
-		  }
-	  if ($basepath != "") $cmdstr .= " --base '$basepath' ";
+	$path = $disk['file'] ;
+	$cmdstr = "virsh blockpull '$vm' --path '$path' --verbose --pivot --delete" ;
+	$cmdstr = "virsh blockpull '$vm' --path '$path' --verbose --wait " ;
+	# Process disks and update path.
+	$snapdisks=($snapslist[$snap]['disks']) ;
+	if ($base != "--base" && $base != "") {
+		#get file name from  snapshot.
+		$snapdisks=($snapslist[$base]['disks']) ;
+		$basepath = "" ;
+		foreach ($snapdisks as $snapdisk) {
+			$diskname = $snapdisk["@attributes"]["name"] ;
+			if ($diskname != $disk['device']) continue ;
+			$basepath = $snapdisk["source"]["@attributes"]["file"] ;
+			}
+		if ($basepath != "") $cmdstr .= " --base '$basepath' ";
+	}
+
+	if ($action) $cmdstr .= " $action ";
+
+
+	$error = execCommand_nchan($cmdstr,$path) ;
+
+	if (!$error)  {
+		$arrResponse =  ['error' => "Process Failed" ] ;
+		return($arrResponse) ;
+	} else {
+		# Remove nvram snapshot
+		$arrResponse = ['success' => true] ;
+	}
+
+}
+
+  if ($state == "shutoff") {
+	$lv->domain_destroy($res);
   }
-
-  if ($action) $cmdstr .= " $action ";
-
-
-  $error = execCommand_nchan($cmdstr,$path) ;
-
-  if (!$error)  {
-	  $arrResponse =  ['error' => "Process Failed" ] ;
-	  return($arrResponse) ;
-  } else {
-	  # Remove nvram snapshot
-	  $arrResponse = ['success' => true] ;
-  }
-
-	  }
 
   refresh_snapshots_database($vm) ;
   $ret = $ret = delete_snapshots_database("$vm","$snap") ;
@@ -2616,6 +2661,7 @@ function get_vm_usage_stats($collectcpustats = true,$collectdiskstats = true,$co
 	$allstats=$lv->domain_get_all_domain_stats();
 
 	foreach ($allstats as $vm => $data) {
+		$rd=$wr=$tx=$rx=null;
 		$state = $data["state.state"];
 		# CPU Metrics
 		$cpuTime = 0;
@@ -2635,8 +2681,8 @@ function get_vm_usage_stats($collectcpustats = true,$collectdiskstats = true,$co
 		# Memory Metrics
 		if ($state == 1 && $collectmemstats) {
 		$currentmem = $data["balloon.current"];
-		$unusedmem = $data["balloon.unused"];
-		$meminuse = $currentmem - $unusedmem;
+		$maximummem = $data["balloon.maximum"];
+		$meminuse = min($data["balloon.rss"],$data["balloon.current"]);
 		} else $currentmem = $meminuse = 0;
 		$wr=$rd=$rx=$tx = null;
 		# Disk
@@ -2671,7 +2717,8 @@ function get_vm_usage_stats($collectcpustats = true,$collectdiskstats = true,$co
 				"cpuguest" => $cpuGuestPercent,
 				"timestamp" => $timestamp,
 				"mem" => $meminuse,
-				"maxmem" => $currentmem,
+				"curmem" => $currentmem,
+				"maxmem" => $maximummem,
 				"rxrate" => $rxrate,
 				"rxp" => $rx,
 				"txrate" => $txrate,
@@ -2989,6 +3036,26 @@ function vm_get_xml_value($xml,$attribute) {
 	$xmlarray = simplexml_load_string($simplexml);
 	return $xmlarray->{$attribute}->__toString();
 
+function check_zfs_name($zfsname, $storage="default") {
+	global $lv,$domain_cfg;
+	if ($storage == "default") $storage = $domain_cfg['DOMAINDIR']; else $storage = "/mnt/$storage/";
+	$storage=transpose_user_path($storage);
+	$fstype = trim(shell_exec(" stat -f -c '%T' $storage"));
+	#Check if ZFS.
+	$allowed_chars = "/^[A-Za-z0-9][A-Za-z0-9\-_.: ]*$/";
+	if ($fstype == "zfs" && !preg_match($allowed_chars, $zfsname)) {
+		return false;
+	} else {
+		return true;
+	}
+}
+
+function get_storage_fstype($storage="default") {
+	global $domain_cfg;
+	if ($storage == "default") $storage = $domain_cfg['DOMAINDIR']; else $storage = "/mnt/$storage/";
+	$storage=transpose_user_path($storage);
+	$fstype = trim(shell_exec(" stat -f -c '%T' $storage"));
+	return $fstype;
 }
 
 ?>

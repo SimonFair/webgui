@@ -33,7 +33,7 @@ EOF
 fi
 
 # load proxy environment vars so it is used for plugin updates and the go script
-/usr/local/sbin/set_proxy
+/usr/local/emhttp/plugins/dynamix/scripts/set_proxy
 [[ -x /etc/profile.d/proxy.sh ]] && . /etc/profile.d/proxy.sh
 
 # irqbalance daemon distributes interrupts over processors and cores
@@ -61,6 +61,11 @@ mkdir -p $CONFIG/shares
 mkdir -p $CONFIG/ssh/root
 mkdir -p $CONFIG/ssl/certs
 
+# Set default Docker backingfs type to native for existing installations
+if [[ -f "/boot/config/docker.cfg" ]]; then
+  grep -q "DOCKER_BACKINGFS=" /boot/config/docker.cfg || echo "DOCKER_BACKINGFS=\"native\"" >> /boot/config/docker.cfg
+fi
+
 # upgrade network configuration (if needed) and (re)generates our welcome text
 if [[ -x /usr/local/sbin/create_network_ini ]]; then
   /usr/local/sbin/create_network_ini init &>/dev/null &
@@ -75,11 +80,6 @@ fi
 # initialize notifications
 /usr/local/emhttp/webGui/scripts/notify smtp-init
 /usr/local/emhttp/webGui/scripts/notify cron-init
-
-# restore favorites
-if [[ -x /usr/local/emhttp/webGui/scripts/restore_favorites ]]; then
-  /usr/local/emhttp/webGui/scripts/restore_favorites
-fi
 
 # start nchan monitoring -> stop all running nchan processes when no subscribers are connected
 if [[ -x /usr/local/sbin/monitor_nchan ]]; then
@@ -176,6 +176,11 @@ for LANGUAGE in $CONFIG/plugins/lang-*.xml; do
   /usr/local/sbin/language install $LANGUAGE | log
 done
 shopt -u nullglob
+
+# restore favorites
+if [[ -x /usr/local/emhttp/webGui/scripts/restore_favorites ]]; then
+  /usr/local/emhttp/webGui/scripts/restore_favorites
+fi
 
 # Enable persistent bash history
 PERSISTENT_BASH_HISTORY=$(grep "persist_bash_history" /boot/config/plugins/dynamix/dynamix.cfg 2>/dev/null | cut -d'=' -f2 | sed 's/"//g')
