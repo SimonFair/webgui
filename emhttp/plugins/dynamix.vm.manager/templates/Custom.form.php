@@ -180,6 +180,7 @@
 		$oldAutoStart = $lv->domain_get_autostart($dom)==1;
 		$newAutoStart = $_POST['domain']['autostart']==1;
 		$strXML = $lv->domain_get_xml($dom);
+		file_put_contents("/tmp/post",json_encode($_POST,JSON_PRETTY_PRINT));
 
 		if ($lv->domain_get_state($dom)=='running') {
 			$arrErrors = [];
@@ -253,18 +254,21 @@
 				array_update_recursive($arrExistingConfig, $arrUpdatedConfig);
 				$arrConfig = array_replace_recursive($arrExistingConfig, $arrUpdatedConfig);
 				$xml = custom::createXML('domain',$arrConfig)->saveXML();
-				$xml = $lv->appendqemucmdline($xml,$_POST["qemucmdline"]) ;
+				$xml = $lv->appendqemucmdline($xml,$_POST["xml"]["qemucmdline"]) ;
 			} else {
 				echo json_encode(['error' => $error]);
 				exit;
 			}
 		}
-		// delete and create the VM
+		#file_put_contents($path.".prev",$strXML);
+		$inlinexml = build_xml_from_inline($_POST,$strXML);
+		$xmledit = false;
+		// delete and create the VM 
 		$lv->nvram_backup($uuid);
 		$lv->domain_undefine($dom);
 		$lv->nvram_restore($uuid);
 		if ($newuuid != $olduuid) $lv->nvram_rename($olduuid,$newuuid);
-		$new = $lv->domain_define($xml);
+		if ($xmledit) $new = $lv->domain_define($inlinexml); else  $new = $lv->domain_define($xml);
 		if ($new) {
 			$lv->domain_set_autostart($new, $newAutoStart);
 			$reply = ['success' => true];
@@ -318,6 +322,8 @@
 	}
 	if ($usertemplate == 1) unset($arrConfig['domain']['uuid']);
 	$xml2 = build_xml_templates($strXML);
+	$xmledit =  true;
+	if ($type == "'1'") $xmldisable = ""; else { $xmldisable = " disabled "; $xmledit = false;}
 	#disable rename  if snapshots exist
 	$snapshots = getvmsnapshots($arrConfig['domain']['name']) ;
 	if ($snapshots != null && count($snapshots) && !$boolNew)  
@@ -342,20 +348,40 @@
 <div class="formview">
 <input type="hidden" name="template[os]" id="template_os" value="<?=htmlspecialchars($arrConfig['template']['os'])?>">
 <input type="hidden" name="domain[persistent]" value="<?=htmlspecialchars($arrConfig['domain']['persistent'])?>">
-<input type="hidden" name="domain[uuid]" value="<?=htmlspecialchars($arrConfig['domain']['uuid'])?>">
-<input type="hidden" name="domain[arch]" value="<?=htmlspecialchars($arrConfig['domain']['arch'])?>">
+
 <input type="hidden" name="domain[oldname]" id="domain_oldname" value="<?=htmlspecialchars($arrConfig['domain']['name'])?>">
 <!--<input type="hidden" name="template[oldstorage]" id="storage_oldname" value="<?=htmlspecialchars($arrConfig['template']['storage'])?>"> -->
 <input type="hidden" name="domain[memoryBacking]" id="domain_memorybacking" value="<?=htmlspecialchars($arrConfig['domain']['memoryBacking'])?>">
+<textarea hidden name="xml[devices][controller]" class="xml"><?=join("\n",$xml2['devices']['controller'])?></textarea>
 
-	<table>
-	<tr><td></td><td>
+<table>
+<tr><td></td><td>
 		<span <?=$snaprenamehidden?> id="snap-rename" class="orange-text"><i class="fa fa-warning"></i> _(Rename disabled, <?=$snapcount?> snapshot(s) exists.)_</span>
 		<span hidden id="zfs-name" class="orange-text"><i class="fa fa-warning"></i> _(Name contains invalid characters or does not start with an alphanumberic for a ZFS storage location<br>Only these special characters are valid Underscore (_) Hyphen (-) Colon (:) Period (.))_</span></td></tr>
+
 		<tr>
-			<td>_(Name)_:</td>
-			<td><input <?=$namedisable?> type="text" name="domain[name]" id="domain_name" oninput="checkName(this.value)" class="textTemplate" title="_(Name of virtual machine)_" placeholder="_(e.g.)_ _(My Workstation)_" value="<?=htmlspecialchars($arrConfig['domain']['name'])?>" required /></td>
-			<td><textarea class="xml" id="xmlname" rows=1 disabled ><?=htmlspecialchars($xml2['name'])."\n".htmlspecialchars($xml2['uuid'])."\n".htmlspecialchars($xml2['metadata'])?></textarea></td>
+			<td>_(UUID)_:</td>
+			<td><input  type="text" class="xml[uuid]" onchange="checkfield(this)" name="domain[uuid]" value="<?=htmlspecialchars($arrConfig['domain']['uuid'])?>" disabled /></td>
+			<td><textarea <?=$xmldisable?> class="domain[uuid] xml" onchange="checkfield(this)" name="xml[uuid]" id="xmluuid" rows=-1><?=htmlspecialchars($xml2['uuid'])?></textarea></td>
+		</tr>
+	</table>
+	<blockquote class="inline_help">
+		<p>Give the VM a name (e.g. Work, Gaming, Media Player, Firewall, Bitcoin Miner)</p>
+	</blockquote>	<table>
+		<tr>
+			<td>_(Arch)_:</td>
+			<td><input type="text" name="domain[arch]" class="xml[arch]" onchange="checkfield(this)" value="<?=htmlspecialchars($arrConfig['domain']['arch'])?>" class="xml[name]" onchange="checkfield(this)" name="domain[arch]" id="domain_name" disabled /></td>
+		</tr>
+	</table>
+	<blockquote class="inline_help">
+		<p>Give the VM a name (e.g. Work, Gaming, Media Player, Firewall, Bitcoin Miner)</p>
+	</blockquote>
+	
+	<table>
+		<tr>
+			<td>_(Name Inline)_:</td>
+			<td><input type="text" class="xml[name]" oninput="checkName(this.value)" onchange="checkfield(this)" name="domain[name]" id="domain_name" class="textTemplate" title="_(Name of virtual machine)_" placeholder="_(e.g.)_ _(My Workstation)_" value="<?=htmlspecialchars($arrConfig['domain']['name'])?>" required /></td>
+			<td><textarea <?=$xmldisable?> class="multiple xml" onchange="checkfield(this)" name="xml[name]" id="xmlname" rows=1><?=htmlspecialchars($xml2['name'])."\n".htmlspecialchars($xml2['metadata'])?></textarea></td>
 		</tr>
 	</table>
 	<blockquote class="inline_help">
@@ -365,8 +391,9 @@
 	<table>
 		<tr class="advanced">
 			<td>_(Description)_:</td>
-			<td><input type="text" name="domain[desc]" title="_(description of virtual machine)_" placeholder="_(description of virtual machine)_ (_(optional)_)" value="<?=htmlspecialchars($arrConfig['domain']['desc'])?>" /></td>
-			<td><textarea class="xml" id="xmldesription" rows=1 disabled ><?=htmlspecialchars($xml2['description'])?></textarea></td>
+			<td><input type="text" class="xml[description]" onchange="checkfield(this)" name="domain[desc]" title="_(description of virtual machine)_" placeholder="_(description of virtual machine)_ (_(optional)_)" value="<?=htmlspecialchars($arrConfig['domain']['desc'])?>" /></td>
+			<td><textarea <?=$xmldisable?> class="domain[desc] xml" $xmldisable onchange="checkfield(this)" name="xml[description]" id="xmldesription" rows=1 ><?=htmlspecialchars($xml2['description'])?></textarea></td>
+			<textarea <?=$xmldisable?> class="xmlold domain[desc]" hidden name="xmlold[description]" rows=1 ><?=htmlspecialchars($xml2['description'])?></textarea>
 		</tr>
 	</table>
 	<div class="advanced">
@@ -378,7 +405,7 @@
 	<table>
 		<tr class="advanced">
 			<td>_(WebUI)_:</td>
-			<td><input type="url" name="template[webui]" title="_(Web UI to start)_" placeholder="_(Web UI to start from menu)_ (_(optional)_)" value="<?=htmlspecialchars($arrConfig['template']['webui'])?>" /></td>
+			<td><input type="url" class="xml[name]" onchange="checkfield(this)" name="template[webui]" title="_(Web UI to start)_" placeholder="_(Web UI to start from menu)_ (_(optional)_)" value="<?=htmlspecialchars($arrConfig['template']['webui'])?>" /></td>
 		</tr>
 	</table>
 	<div class="advanced">
@@ -395,7 +422,7 @@
 		<tr>
 			<?if (!$boolNew) $disablestorage = " disabled "; else $disablestorage = "";?>
 			<td>_(Override Storage Location)_:</td><td>
-			<select <?=$disablestorage?> name="template[storage]" onchange="get_storage_fstype(this)" class="disk_select narrow" id="storage_location" title="_(Location of virtual machine files)_">
+			<select <?=$disablestorage?> class="xml" name="template[storage]" class="disk_select narrow" id="storage_location" title="_(Location of virtual machine files)_">
 			<?
 			$default_storage=htmlspecialchars($arrConfig['template']['storage']);
 			echo mk_option($default_storage, 'default', _('Default'));
@@ -461,19 +488,19 @@
 		<tr class="advanced">
 			<td><span class="advanced">_(CPU)_ </span>_(Mode)_:</td>
 			<td>
-				<select id="cpu" name="domain[cpumode]" class="cpu" title="_(define type of cpu presented to this vm)_">
+				<select id="cpu" name="domain[cpumode]" class="domain[cpumode] cpu" title="_(define type of cpu presented to this vm)_">
 				<?mk_dropdown_options(['host-passthrough' => _('Host Passthrough').' (' . $strCPUModel . ')', 'custom' => _('Emulated').' ('._('QEMU64').')'], $arrConfig['domain']['cpumode']);?>
 				</select>
 				<span class="advanced" id="domain_cpumigrate_text"<?=$migratehidden?>>_(Migratable)_:</span>
 
-				<select name="domain[cpumigrate]" id="domain_cpumigrate"  <?=$migratehidden?> class="narrow" title="_(define if migratable)_">
+				<select name="domain[cpumigrate]" onchange="checkfield(this)" class="domain[cpumigrate] narrow" id="domain_cpumigrate"  <?=$migratehidden?>  title="_(define if migratable)_">
 				<?
 				echo mk_option($arrConfig['domain']['cpumigrate'], 'on', 'On');
 				echo mk_option($arrConfig['domain']['cpumigrate'], 'off', 'Off') ;
 				?>
 				</select>
 			</td>
-			<td><textarea class="xml" id="xmlcpu" rows=1 disabled ><?=htmlspecialchars($xml2['cpu'])?></textarea></td>
+			<td><textarea <?=$xmldisable?> class="xml" class="multiple xml" name="xml[cpu]" id="xmlcpu" onchange="checkfield(this)" rows=1  ><?=htmlspecialchars($xml2['cpu'])?></textarea></td>
 		</tr>
 	</table>
 	<div class="advanced">
@@ -493,6 +520,37 @@
 			</p>
 		</blockquote>
 	</div>
+	<table>
+		<tr class="advanced">
+			<?$cpus = cpu_list(); 
+			$corecount = 0;
+			foreach ($cpus as $pair) {
+				unset($cpu1,$cpu2);
+				[$cpu1, $cpu2] = my_preg_split('/[,-]/',$pair);
+				if (!$cpu2) 	$corecount++; else $corecount=$corecount+2;
+			}
+			if (is_array($arrConfig['domain']['vcpu'])) $coredisable = "disabled"; else $coredisable = ""; 
+			?>
+			<td><span class="advanced">_(CPU Cores)_ </span></td>
+			<td>
+				<select id="vcpus" <?=$coredisable?> name="domain[vcpus]" class="narrow domain_vcpus" title="_(vcpu allocated to vm)_">
+				<?
+					for ($i = 1; $i <= ($corecount); $i++) {
+						echo mk_option($arrConfig['domain']['vcpus'], $i, $i);
+					}
+				?>
+				</select>
+			</td>
+		</tr>
+	</table>
+	<div class="advanced">
+		<blockquote class="inline_help">
+			<p>There are two CPU modes available to choose:</p>
+			<p>
+				<b>vCPUs Allocated</b><br>
+				Set the number of vCPUs allocated to the VM when not using pinning. The host will dynamically allocate workload for the VM across the whole system.
+		</blockquote>
+	</div>
 
 	<table>
 		<tr>
@@ -506,17 +564,17 @@
 					[$cpu1, $cpu2] = my_preg_split('/[,-]/',$pair);
 					$extra = ($arrConfig['domain']['vcpu'] && in_array($cpu1, $arrConfig['domain']['vcpu'])) ? ($arrConfig['domain']['vcpus'] > 1 ? 'checked' : 'checked disabled') : '';
 					if (!$cpu2) {
-						echo "<label for='vcpu$cpu1' class='checkbox'>cpu $cpu1<input type='checkbox' name='domain[vcpu][]' class='domain_vcpu' id='vcpu$cpu1' value='$cpu1' $extra><span class='checkmark'></span></label>";
+						echo "<label for='vcpu$cpu1' class='checkbox'>cpu $cpu1<input type='checkbox' onchange='checkfield(this)'  name='domain[vcpu][]' class='domain[vcpu][] domain_vcpu' id='vcpu$cpu1' value='$cpu1' $extra><span class='checkmark'></span></label>";
 					} else {
-						echo "<label for='vcpu$cpu1' class='cpu1 checkbox'>cpu $cpu1 / $cpu2<input type='checkbox' name='domain[vcpu][]' class='domain_vcpu' id='vcpu$cpu1' value='$cpu1' $extra><span class='checkmark'></span></label>";
+						echo "<label for='vcpu$cpu1' class='cpu1 checkbox'>cpu $cpu1 / $cpu2<input type='checkbox' name='domain[vcpu][]' onchange='checkfield(this)'  class='domain_vcpu' id='vcpu$cpu1' value='$cpu1' $extra><span class='checkmark'></span></label>";
 						$extra = ($arrConfig['domain']['vcpu'] && in_array($cpu2, $arrConfig['domain']['vcpu'])) ? ($arrConfig['domain']['vcpus'] > 1 ? 'checked' : 'checked disabled') : '';
-						echo "<label for='vcpu$cpu2' class='cpu2 checkbox'><input type='checkbox' name='domain[vcpu][]' class='domain_vcpu' id='vcpu$cpu2' value='$cpu2' $extra><span class='checkmark'></span></label>";
+						echo "<label for='vcpu$cpu2' class='cpu2 checkbox'><input type='checkbox' name='domain[vcpu][]' onchange='checkfield(this)'  class='domain_vcpu' id='vcpu$cpu2' value='$cpu2' $extra><span class='checkmark'></span></label>";
 					}
 				}
 				?>
 				</div>
 			</td>
-			<td><textarea class="xml" id="xmlvcpu" rows=5 disabled ><?=htmlspecialchars($xml2['vcpu'])."\n".htmlspecialchars($xml2['cputune'])?></textarea></td>
+			<td><textarea <?=$xmldisable?> name="xml[vcpu]" class="multiple xml" onchange="checkfield(this)"  id="xmlvcpu" rows=5  ><?=htmlspecialchars($xml2['vcpu'])."\n".htmlspecialchars($xml2['cputune'])?></textarea></td>
 		</tr>
 	</table>
 	<blockquote class="inline_help">
@@ -528,7 +586,7 @@
 		<tr>
 			<td><span class="advanced">_(Initial)_ </span>_(Memory)_:</td>
 			<td>
-				<select name="domain[mem]" id="domain_mem" class="narrow" title="_(define the amount memory)_">
+				<select name="domain[mem]" class="xml[memory] narrow" id="domain_mem" onchange="checkfield(this)" class="narrow" title="_(define the amount memory)_">
 				<?
 					echo mk_option($arrConfig['domain']['mem'], 128 * 1024, '128 MB');
 					echo mk_option($arrConfig['domain']['mem'], 256 * 1024, '256 MB');
@@ -541,7 +599,7 @@
 				</select>
 	
 			<span class="advanced">_(Max)_ _(Memory)_:</span>		
-				<select name="domain[maxmem]" id="domain_maxmem" class="narrow" title="_(define the maximum amount of memory)_">
+				<select name="domain[maxmem]" class="xml[memory] narrow" id="domain_maxmem" onchange="checkfield(this)" class="narrow" title="_(define the maximum amount of memory)_">
 				<?
 					echo mk_option($arrConfig['domain']['maxmem'], 128 * 1024, '128 MB');
 					echo mk_option($arrConfig['domain']['maxmem'], 256 * 1024, '256 MB');
@@ -553,7 +611,7 @@
 				?>
 				</select>
 			</td>
-			<td><textarea class="xml" id="xmlmem" rows=2  disabled ><?=htmlspecialchars($xml2['memory'])."\n".htmlspecialchars($xml2['currentMemory'])."\n".htmlspecialchars($xml2['memoryBacking'])?></textarea></td>
+			<td><textarea <?=$xmldisable?> class="multiple xml" name="xml[memory]" id="xmlmem" rows=2  onchange="checkfield(this)" ><?=htmlspecialchars($xml2['memory'])."\n".htmlspecialchars($xml2['currentMemory'])."\n".htmlspecialchars($xml2['memoryBacking'])?></textarea></td>
 		</tr>
 	</table>
 	<div class="basic">
@@ -577,11 +635,11 @@
 		<tr class="advanced">
 			<td>_(Machine)_:</td>
 			<td>
-				<select name="domain[machine]" class="narrow" id="domain_machine" title="_(Select the machine model)_.  _(i440fx will work for most)_.  _(Q35 for a newer machine model with PCIE)_">
+				<select name="domain[machine]" onchange="checkfield(this)" class="xml[os] narrow" id="domain_machine" title="_(Select the machine model)_.  _(i440fx will work for most)_.  _(Q35 for a newer machine model with PCIE)_">
 				<?mk_dropdown_options($arrValidMachineTypes, $arrConfig['domain']['machine']);?>
 				</select>
 			</td>
-			<td><textarea class="xml" id="xmlos" rows=5 cols=200 disabled ><?=htmlspecialchars($xml2['os'])."\n".htmlspecialchars($xml2['features'])?></textarea></td>
+			<td><textarea <?=$xmldisable?> class="multiple xml" onchange="checkfield(this)" name="xml[os]" id="xmlos" rows=5 cols=200 ><?=htmlspecialchars($xml2['os'])."\n".htmlspecialchars($xml2['features'])?></textarea></td>
 		</tr>
 	</table>
 	<div class="advanced">
@@ -597,7 +655,7 @@
 		<tr class="advanced">
 			<td>_(BIOS)_:</td>
 			<td>
-				<select name="domain[ovmf]" id="domain_ovmf" class="narrow" title="_(Select the BIOS)_.  _(SeaBIOS will work for most)_.  _(OVMF requires a UEFI-compatable OS)_ (_(e.g.)_ _(Windows 8/2012, newer Linux distros)_) _(and if using graphics device passthrough it too needs UEFI)_" onchange="BIOSChange(this)">
+				<select name="domain[ovmf]" class="multiple xml" id="domain_ovmf" class="narrow" title="_(Select the BIOS)_.  _(SeaBIOS will work for most)_.  _(OVMF requires a UEFI-compatable OS)_ (_(e.g.)_ _(Windows 8/2012, newer Linux distros)_) _(and if using graphics device passthrough it too needs UEFI)_" onchange="BIOSChange(this)">
 				<?
 					echo mk_option($arrConfig['domain']['ovmf'], '0', _('SeaBIOS'));
 
@@ -620,7 +678,7 @@
 				?>
 				<span id="USBBoottext" class="advanced" <?=$usbboothidden?>>_(Enable USB boot)_:</span>
 
-				<select name="domain[usbboot]" id="domain_usbboot" class="narrow" title="_(define OS boot options)_" <?=$usbboothidden?> onchange="USBBootChange(this)">
+				<select name="domain[usbboot]" class="xml[os] xml" id="domain_usbboot" class="narrow" title="_(define OS boot options)_" <?=$usbboothidden?> onchange="USBBootChange(this)">
 				<?
 					echo mk_option($arrConfig['domain']['usbboot'], 'No', 'No');
 					echo mk_option($arrConfig['domain']['usbboot'], 'Yes', 'Yes');
@@ -683,6 +741,7 @@
 				?>
 				</select>
 			</td>
+			<td><textarea <?=$xmldisable?> class="multiple xml" name="xml[devices][controller][usb]" id="xmlctlusb" rows=2  onchange="checkfield(this)" ><?=htmlspecialchars($xml2["devices"]["controller"]["usb"])?></textarea></td>
 		</tr>
 	</table>
 	<div class="advanced">
@@ -698,18 +757,18 @@
 		<tr>
 			<td>_(OS Install ISO)_:</td>
 			<td>
-				<input type="text" name="media[cdrom]" autocomplete="off" spellcheck="false" data-pickcloseonfile="true" data-pickfilter="iso" data-pickmatch="^[^.].*" data-pickroot="<?=htmlspecialchars($domain_cfg['MEDIADIR'])?>" class="cdrom" value="<?=htmlspecialchars($arrConfig['media']['cdrom'])?>" placeholder="_(Click and Select cdrom image to install operating system)_">
+				<input type="text" onchange="checkfield(this)"  name="xml[vdiskhda]  media[cdrom]" autocomplete="off" spellcheck="false" data-pickcloseonfile="true" data-pickfilter="iso" data-pickmatch="^[^.].*" data-pickroot="<?=htmlspecialchars($domain_cfg['MEDIADIR'])?>" class="cdrom" value="<?=htmlspecialchars($arrConfig['media']['cdrom'])?>" placeholder="_(Click and Select cdrom image to install operating system)_">
 			</td>
-			<td><textarea class="xml" id="xmlvdiskhda" rows=1 disabled wrap="soft"><?=htmlspecialchars($xml2['devices']['disk']['hda'])?></textarea></td>
+			<td><textarea <?=$xmldisable?> class="xml" name="xml[devices][vdiskhda]" id="xmlvdiskhda" rows=1  wrap="soft"><?=htmlspecialchars($xml2['devices']['disk']['hda'])?></textarea></td>
 		</tr>
 		<tr class="advanced">
 			<td>_(OS Install CDRom Bus)_:</td>
 			<td>
-				<select name="media[cdrombus]" class="cdrom_bus narrow">
+				<select name="media[cdrombus]" xml[vdiskhda]  onchange="checkfield(this)"  class="cdrom_bus narrow">
 				<?mk_dropdown_options($arrValidCdromBuses, $arrConfig['media']['cdrombus']);?>
 				</select>
 				_(Boot Order)_:
-				<input type="number" size="5" maxlength="5" id="cdboot" class="narrow bootorder" style="width: 50px;" name="media[cdromboot]"   title="_(Boot order)_"  value="<?=$arrConfig['media']['cdromboot']?>" >
+				<input type="number" size="5" maxlength="5" onchange="checkfield(this)"  id="cdboot" class="narrow bootorder" style="width: 50px;" name="media[cdromboot]"   title="_(Boot order)_"  value="<?=$arrConfig['media']['cdromboot']?>" >
 				</td>
 			</td>
 		</tr>
@@ -726,17 +785,17 @@
 		<tr class="advanced">
 			<td>_(VirtIO Drivers ISO)_:</td>
 			<td>
-				<input type="text" name="media[drivers]" autocomplete="off" spellcheck="false" data-pickcloseonfile="true" data-pickfilter="iso" data-pickmatch="^[^.].*" data-pickroot="<?=htmlspecialchars($domain_cfg['MEDIADIR'])?>" class="cdrom" value="<?=htmlspecialchars($arrConfig['media']['drivers'])?>" placeholder="_(Download, Click and Select virtio drivers image)_">
+				<input type="text" name="media[drivers]" onchange="checkfield(this)" autocomplete="off" spellcheck="false" data-pickcloseonfile="true" data-pickfilter="iso" data-pickmatch="^[^.].*" data-pickroot="<?=htmlspecialchars($domain_cfg['MEDIADIR'])?>" class="xml[vdiskhdb]  cdrom" value="<?=htmlspecialchars($arrConfig['media']['drivers'])?>" placeholder="_(Download, Click and Select virtio drivers image)_">
 			</td>
 		</tr>
 		<tr class="advanced">
 			<td>_(VirtIO Drivers CDRom Bus)_:</td>
 			<td>
-				<select name="media[driversbus]" class="cdrom_bus narrow">
+				<select name="media[driversbus]" onchange="checkfield(this)" class="xml[vdiskhdb] cdrom_bus narrow">
 				<?mk_dropdown_options($arrValidCdromBuses, $arrConfig['media']['driversbus']);?>
 				</select>
 			</td>
-			<td><textarea class="xml" id="xmlvdiskhdb" rows=1 disabled wrap="soft"><?=htmlspecialchars($xml2['devices']['disk']['hdb'])?></textarea></td>
+			<td><textarea <?=$xmldisable?> class="multiple xml" name="xml[devices][vdiskhdb]" id="xmlvdiskhdb" rows=1  wrap="soft"><?=htmlspecialchars($xml2['devices']['disk']['hdb'])?></textarea></td>
 		</tr>
 	</table>
 	<div class="domain_os windows">
@@ -836,7 +895,7 @@
 					?>
 					</select><input type="text" name="disk[<?=$i?>][new]" autocomplete="off" spellcheck="false" data-pickcloseonfile="true" data-pickfolders="true" data-pickfilter="img,qcow,qcow2" data-pickmatch="^[^.].*" data-pickroot="/mnt/" class="disk" id="disk_<?=$i?>" value="<?=htmlspecialchars($arrDisk['new'])?>" placeholder="_(Separate sub-folder and image will be created based on Name)_"><div class="disk_preview"></div>
 				</td>
-				<td><textarea class="xml" id="xmlvdisk<?=$i?>" rows=4 disabled wrap="soft"><?=htmlspecialchars($xml2['devices']['disk'][$arrDisk['dev']])?></textarea></td>
+				<td><textarea <?=$xmldisable?> class="xml" name="xml[devices][vdisk<?=$i?>]" id="xmlvdisk<?=$i?>" rows=4 wrap="soft"><?=htmlspecialchars($xml2['devices']['disk'][$arrDisk['dev']])?></textarea></td>
 			</tr>
 
 			<input type="hidden" name="disk[<?=$i?>][storage]" id="disk[<?=$i?>][storage]" value="<?=htmlspecialchars($arrConfig['template']['storage'])?>">
@@ -1070,7 +1129,7 @@
 						mk_dropdown_options($arrUnraidShares, $arrUnraidIndex);?>
 				</select>
 				</td>
-				<td><textarea class="xml" id="xmlshare<?=$i?>" rows=4  wrap="soft" disabled ><?=htmlspecialchars($xml2['devices']['filesystem'][$i])?></textarea></td>
+				<td><textarea <?=$xmldisable?> class="xml"  name="xml[devices][share<?=$i?>]" id="xmlshare<?=$i?>" rows=4  wrap="soft"  ><?=htmlspecialchars($xml2['devices']['filesystem'][$i])?></textarea></td>
 				</tr>
 
 			<tr class="advanced">
@@ -1195,9 +1254,9 @@
 				<?
 					if ($arrGPU['id'] == 'virtual') {
 			    ?>
-				<td><textarea class="xml" id="xmlgraphics<?=$i?>" rows=5  disabled ><?=htmlspecialchars($xml2['devices']['graphics'][0])."\n".htmlspecialchars($xml2['devices']['video'][0])."\n".htmlspecialchars($xml2['devices']['audio'][0])?></textarea></td>
+				<td><textarea <?=$xmldisable?> class="xml" name="xml[devices][graphics<?=$i?>]" id="xmlgraphics<?=$i?>" rows=5  ><?=htmlspecialchars($xml2['devices']['graphics'][0])."\n".htmlspecialchars($xml2['devices']['video'][0])."\n".htmlspecialchars($xml2['devices']['audio'][0])?></textarea></td>
 				<?} else {?>
-				<td><textarea class="xml" id="xmlgraphics<?=$i?>" rows=5  disabled ><?=htmlspecialchars($xml2['devices']['vga'][$arrGPU['id']])?></textarea></td>
+				<td><textarea <?=$xmldisable?> class="xml" name="xml[devices][graphics<?=$i?>]" id="xmlgraphics<?=$i?>" rows=5   ><?=htmlspecialchars($xml2['devices']['vga'][$arrGPU['id']])?></textarea></td>
 				<?}?>
 			</tr>
 
@@ -1371,7 +1430,7 @@
 					?>
 					</select>
 				</td>
-				<td><textarea class="xml" id="xmlaudio<?=$i?>" rows=5  disabled ><?=htmlspecialchars($xml2['devices']['audio'][$arrAudio['id']])?></textarea></td>
+				<td><textarea <?=$xmldisable?> class="xml" name="xml[devices][audio<?=$i?>]" id="xmlaudio<?=$i?>" rows=5  ><?=htmlspecialchars($xml2['devices']['audio'][$arrAudio['id']])?></textarea></td>
 			</tr>
 		</table>
 		<?if ($i == 0) {?>
@@ -1416,7 +1475,7 @@
 				<td>
 					<input type="text" name="nic[<?=$i?>][mac]" class="narrow" value="<?=htmlspecialchars($arrNic['mac'])?>" title="_(random mac, you can supply your own)_" /> <i class="fa fa-refresh mac_generate" title="_(re-generate random mac address)_"></i>
 				</td>
-				<td><textarea class="xml" id="xmlnet<?=$i?>" rows=5  disabled ><?=htmlspecialchars($xml2['devices']['interface'][$i])?></textarea></td>
+				<td><textarea <?=$xmldisable?> class="xml" name="xml[devices][net<?=$i?>]" id="xmlnet<?=$i?>" rows=5   ><?=htmlspecialchars($xml2['devices']['interface'][$i])?></textarea></td>
 			</tr>
 			<tr class="advanced">
 				<td>_(Network Source)_:</td>
@@ -1551,7 +1610,7 @@
 					}
 				?>
 				</div>
-			</td><td><textarea class="xml" id="xmlusb<?=$i?>" rows=5  disabled ><?=htmlspecialchars($xml2['devices']['allusb'])?></textarea></td>
+			</td><td><textarea <?=$xmldisable?> class="xml"  name="xml[devices][usb<?=$i?>]" id="xmlusb<?=$i?>" rows=5  ><?=htmlspecialchars($xml2['devices']['allusb'])?></textarea></td>
 		</tr>
 	</table>
 	<blockquote class="inline_help">
@@ -1563,6 +1622,7 @@
 	<table>
 	<tr><td></td>
 		<td>_(Select)_&nbsp&nbsp_(Boot Order)_</td></tr></div>
+		<tr>
 		<tr>
 			<td>_(Other PCI Devices)_:</td>
 			<td>
@@ -1587,6 +1647,7 @@
 						<label for="pci<?=$i?>">&nbsp&nbsp&nbsp&nbsp<input type="checkbox" name="pci[]" id="pci<?=$i?>" value="<?=htmlspecialchars($arrDev['id'])?>" <?=$extra?>/> &nbsp
 						<input type="number" size="5" maxlength="5" id="pciboot<?=$i?>" class="narrow pcibootorder" <?=$bootdisable?>  style="width: 50px;" name="pciboot[<?=htmlspecialchars($arrDev['id'])?>]"   title="_(Boot order)_"  value="<?=$pciboot?>" >
 						<?=htmlspecialchars($arrDev['name'])?> | <?=htmlspecialchars($arrDev['type'])?> (<?=htmlspecialchars($arrDev['id'])?>)</label><br/>
+						<td><textarea <?=$xmldisable?> class="xml" name="xml[devices][pci<?=$i?>]" id="xmlpci<?=$i?>" rows=5   ><?=htmlspecialchars($xml2['devices']['other'][$arrDev['id']])?></textarea></td>
 					<?
 						}
 					}
@@ -1596,7 +1657,6 @@
 					}
 				?>
 				</div>
-				<td><textarea class="xml" id="xmlpci<?=$i?>" rows=2  disabled ><?=htmlspecialchars($xml2['devices']['other']["allotherpci"])?></textarea></td>
 			</td>
 
 		</tr>
@@ -1640,7 +1700,7 @@
 				if ($arrConfig['qemucmdline'] == "") $qemurows = 2 ; else $qemurows = 15 ;
 				?>
 			<td>
-			<textarea id="qemucmdline" name="qemucmdline" class="xmlqemu" rows=<?=$qemurows?> style="width: 780px" onchange="QEMUChgCmd(this)"><?=htmlspecialchars($arrConfig['qemucmdline'])."\n".htmlspecialchars($arrConfig['qemuoverride'])?> </textarea></td></tr>
+			<textarea <?=$xmldisable?> id="qemucmdline"  name="xml[qemucmdline]" class="xml" rows=<?=$qemurows?> style="width: 780px" onchange="QEMUChgCmd(this)"><?=htmlspecialchars($arrConfig['qemucmdline'])."\n".htmlspecialchars($arrConfig['qemuoverride'])?> </textarea></td></tr>
 			</td>
 		</tr>
 	</table>
@@ -1662,7 +1722,7 @@
 				?>
 				</select>
 			</td>
-			<td></td><td></td><td><textarea class="xml" id="xmlclock" rows=5 disabled ><?=htmlspecialchars($xml2['clock'])."\n".htmlspecialchars($xml2['on_poweroff'])."\n".htmlspecialchars($xml2['on_reboot'])."\n".htmlspecialchars($xml2['on_crash'])?></textarea></td>
+			<td></td><td></td><td><textarea <?=$xmldisable?> class="xml" name="xml[clock]" id="xmlclock" rows=5  ><?=htmlspecialchars($xml2['clock'])."\n".htmlspecialchars($xml2['on_poweroff'])."\n".htmlspecialchars($xml2['on_reboot'])."\n".htmlspecialchars($xml2['on_crash'])?></textarea></td>
 		</tr>
 					<?$clockcount = 0 ;
 					if (!empty($arrClocks)) {
@@ -1726,7 +1786,7 @@
 					?>
 					</select>
 				</td>
-				<td></td><td></td><td><textarea class="xml" id="xmlclock" rows=5 disabled ><?=htmlspecialchars($xml2['devices']['allinput'])?></textarea></td>
+				<td></td><td></td><td><textarea <?=$xmldisable?>  name="xml[devices][input]" class="xml" id="xmlclock" rows=5 ><?=htmlspecialchars($xml2['devices']['allinput'])?></textarea></td>
 		</tr>
 
 		<tr class="advanced disk_file_options">
@@ -1870,7 +1930,16 @@
 				if ($arrConfig['qemucmdline'] == "") $qemurows = 2 ; else $qemurows = 15 ;
 				?>
 			<td>
-			<textarea id="xmlother" name="xmlother" disabled class="xml" rows=10 style="width: 780px"> <?=htmlspecialchars($xml2['devices']['emulator'][0])."\n".htmlspecialchars($xml2['devices']['console'][0])."\n".htmlspecialchars($xml2['devices']['serial'][0])."\n".htmlspecialchars($xml2['devices']['channel'][0])."\n"?> </textarea></td></tr>
+			<textarea <?=$xmldisable?> id="xmlother" name="xml[devices][other]" class="xml" rows=10 style="width: 780px"> <?=htmlspecialchars($xml2['devices']['emulator'][0])."\n".htmlspecialchars($xml2['devices']['console'][0])."\n".htmlspecialchars($xml2['devices']['serial'][0])."\n".htmlspecialchars($xml2['devices']['channel'][0])."\n"?> </textarea></td></tr>
+			</td>
+		</tr>
+	</table>
+	<table>
+	<tr>
+		<tr>
+			<td class="xml">_(Controller XML)_:</td>
+			<td>
+			<textarea <?=$xmldisable?> id="xmlctl" name="xml[devices][controller]" class="xml" rows=10 style="width: 780px"> <?=htmlspecialchars(join("\n",$xml2['devices']['controller']))?> </textarea></td></tr>
 			</td>
 		</tr>
 	</table>
@@ -1913,6 +1982,40 @@
 <script type="text/javascript">
 var storageType = "<?=get_storage_fstype($arrConfig['template']['storage']);?>";
 var storageLoc = "<?=$arrConfig['template']['storage']?>";
+
+function checkfield(valuein) {
+	var fromvalue = valuein.value;
+	var fromclass = valuein.name;
+	var toclass = valuein.className;
+	toclass = toclass.split(" ");
+	toclass = toclass[0];
+	var oldclass = fromclass.replace("xml[","xmlold[");
+	oldobject = document.getElementsByName(oldclass);
+	if (oldobject.length != 0) {
+		var oldvalue = oldobject[0].value;
+	} else oldvalue = null;
+	if (toclass != "multiple") {
+		var toobject = document.getElementsByName(toclass);
+		var tovalue = toobject[0].value;
+	} else tovalue = fromvalue;
+
+	$.getJSON("/plugins/dynamix.vm.manager/include/VMajax.php?action=vm-field-updates&fromclass=" + encodeURIComponent(fromclass) + "&toclass="+ encodeURIComponent(toclass) + "&fromclassvalue="+ encodeURIComponent(fromvalue) + "&toclassvalue="+ encodeURIComponent(tovalue) + "&oldclassvalue="+ encodeURIComponent(oldvalue), function( newvalues ) {
+		if (newvalues.success) {
+			if (toclass == "multiple") {
+				var keys = Object.keys(newvalues.value.multiple);
+				var values = Object.values(newvalues.value.multiple);
+				let text ="";
+				for (const [key, value] of Object.entries(newvalues.value.multiple)) { 
+					toobject = document.getElementsByName(key);
+					toobject[0].value = value;
+				}
+			} else {
+			tovalue = newvalues.value;
+			toobject[0].value = tovalue;
+			}
+		}
+	});
+}
 
 function ShareChange(share) {
 		var value = share.value;
@@ -1969,6 +2072,7 @@ function BIOSChange(bios) {
 			document.getElementById("domain_usbboot").style.display="inline";
 			document.getElementById("domain_usbboot").style.visibility="visible";
 		}
+		checkfield(bios);
 }
 
 function QEMUChgCmd(qemu) {
@@ -2058,6 +2162,7 @@ function USBBootChange(usbboot) {
 	// Remove all boot orders if changed to Yes
 	var value = usbboot.value ;
 	SetBootorderfields(value) ;
+	checkfield(usbboot) ;
 }
 
 function AutoportChange(autoport) {
@@ -2298,20 +2403,24 @@ $(function() {
 	$("#vmform .domain_vcpu").change(function changeVCPUEvent() {
 		var $cores = $("#vmform .domain_vcpu:checked");
 
-		if ($cores.length == 1) {
-			$cores.prop("disabled", true);
+		if ($cores.length < 1) {
+			$("#vmform .domain_vcpus").prop("disabled", false);
+			$("#vmform .domain_vcpu").prop("disabled", false);
 		} else {
+			$("#vmform .domain_vcpus").prop("disabled", true).prop("value", $cores.length);
 			$("#vmform .domain_vcpu").prop("disabled", false);
 		}
 	});
 
 	$("#vmform #domain_mem").change(function changeMemEvent() {
 		$("#vmform #domain_maxmem").val($(this).val());
+		//checkfield(this);
 	});
 
 	$("#vmform #domain_maxmem").change(function changeMaxMemEvent() {
 		if (parseFloat($(this).val()) < parseFloat($("#vmform #domain_mem").val())) {
 			$("#vmform #domain_mem").val($(this).val());
+			//checkfield(this);
 		}
 	});
 
@@ -2387,7 +2496,7 @@ $(function() {
 			document.getElementById("domain_cpumigrate").style.display="inline";
 			document.getElementById("domain_cpumigrate").style.visibility="visible";
 		}
-
+		checkfield(this); 
 	}) ;
 
 	$("#vmform").on("change", ".gpu", function changeGPUEvent() {
@@ -2447,6 +2556,8 @@ $(function() {
 		});
 
 		$panel.find('input').prop('disabled', false); // enable all inputs otherwise they wont post
+		$panel.find('textarea.xml').prop('disabled', false); // enable all inputs otherwise they wont post
+		var talist = $panel.find('textarea');
 
 		<?if (!$boolNew):?>
 		// signal devices to be added or removed
@@ -2474,7 +2585,7 @@ $(function() {
 			if (audio && !sound.includes(audio)) form.append('<input type="hidden" name="pci[]" value="'+audio+'#remove">');
 		});
 		<?endif?>
-		var postdata = form.find('input,select,textarea[name="qemucmdline"]').serialize().replace(/'/g,"%27");
+		var postdata = form.find('input,select,textarea.xml').serialize().replace(/'/g,"%27");
 		<?if (!$boolNew):?>
 		// keep checkbox visually unchecked
 		form.find('input[name="usb[]"],input[name="usbopt[]"],input[name="pci[]"]').each(function(){
@@ -2522,6 +2633,7 @@ $(function() {
 		});
 
 		$panel.find('input').prop('disabled', false); // enable all inputs otherwise they wont post
+
 
 		<?if (!$boolNew):?>
 		// signal devices to be added or removed

@@ -2827,6 +2827,11 @@ foreach (array_keys($xmldevices) as $key) $output .= $xmldevices[$key]."\n";
 $output .= "</devices>\n";
 $output .= $xmlqemu;
 $output .= "\n</domain>";
+$domXML = new DOMDocument();
+$domXML->preserveWhiteSpace = false;
+$domXML->formatOutput = true;
+$domXML->loadXML($output);
+$output=  $domXML->saveXML();
 
 
 file_put_contents("/tmp/xmlbuild2",$output);
@@ -3035,6 +3040,7 @@ function vm_get_xml_value($xml,$attribute) {
 	$simplexml = "<document>$xml</document>";	
 	$xmlarray = simplexml_load_string($simplexml);
 	return $xmlarray->{$attribute}->__toString();
+}
 
 function check_zfs_name($zfsname, $storage="default") {
 	global $lv,$domain_cfg;
