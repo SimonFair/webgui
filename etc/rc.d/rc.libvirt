@@ -54,13 +54,13 @@ vmlist(){
   for ARG in ${@: 1}; do
     [[ $ARG == all ]] && STATE="$STATE --all" || STATE="$STATE --state-$ARG"
   done
-  virsh list --uuid $STATE | tail -n +3 | grep -v '^$'
+  virsh list --uuid $STATE | tail -n +1 | grep -v '^$'
 }
 
 waitfor(){
   local C=0
   while [[ $C -lt $TIMEOUT && $(virsh list --state-$1 | awk "NR>2 && /${2:-^.+$}/" | wc -l) -gt 0 ]]; do
-    if [ $C -eq 0 ]; then # echo Timeout info just one time and only if virsh returned something
+    if [[ $C -eq 0 ]]; then # echo Timeout info just one time and only if virsh returned something
       log "Waiting $TIMEOUT seconds for VMs with state: $1"
     fi
     ((C++))
@@ -224,6 +224,7 @@ libvirtd_start(){
         fi
       fi
     done
+    sed -i 's|<vmtemplate xmlns="unraid|<vmtemplate xmlns="http://unraid|' "$XML"
   done
 
   # copy any new conf files we dont currently have
@@ -346,6 +347,9 @@ case "$1" in
   ;;
 'status')
   libvirtd_status
+  ;;
+'stopvm')
+  stop_running_machines
   ;;
 *)
   echo "Usage: $BASENAME test|start|stop|restart|status"

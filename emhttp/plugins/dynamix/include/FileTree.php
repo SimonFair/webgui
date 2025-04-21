@@ -27,15 +27,15 @@
  */
 
 function path($dir) {
-  return mb_substr($dir,-1)=='/' ? $dir : $dir.'/';
+  return mb_substr($dir,-1) == '/' ? $dir : $dir.'/';
 }
 function is_top($dir) {
   global $root;
-  return mb_strlen($dir)>mb_strlen($root);
+  return mb_strlen($dir) > mb_strlen($root);
 }
 function is_low($dir) {
   global $root;
-  return mb_substr($dir,0,mb_strlen($root))==$root;
+  return mb_substr($dir,0,mb_strlen($root)) == $root;
 }
 
 $root = path(realpath($_POST['root']));
@@ -45,38 +45,51 @@ $docroot = '/usr/local/emhttp';
 require_once "$docroot/webGui/include/Secure.php";
 
 $rootdir  = path(realpath($_POST['dir']));
+$topdir   = '/mnt/';
+$userdir  = '/mnt/user/';
 $filters  = (array)$_POST['filter'];
 $match    = $_POST['match'];
-$checkbox = $_POST['multiSelect']=='true' ? "<input type='checkbox'>" : "";
+$checkbox = $_POST['multiSelect'] == 'true' ? "<input type='checkbox'>" : "";
 
 /* Excluded folders to not show in the dropdown in the '/mnt/' directory only. */
-$excludedFolders	= ["RecycleBin", "addons", "remotes", "rootshare", "user0"];
+$excludedFolders = ['RecycleBin', 'addons', 'rootshare'];
+$udShares = ['disks','remotes'];
 
 echo "<ul class='jqueryFileTree'>";
-if ($_POST['show_parent']=='true' && is_top($rootdir)) echo "<li class='directory collapsed'>$checkbox<a href='#' rel=\"".htmlspecialchars(dirname($rootdir))."\">..</a></li>";
+if ($_POST['show_parent'] == 'true' && is_top($rootdir)) {
+  echo "<li class='directory collapsed'>$checkbox<a href='#' rel=\"".htmlspecialchars(dirname($rootdir))."\">..</a></li>";
+}
 
 if (is_low($rootdir) && is_dir($rootdir)) {
   $dirs = $files = [];
-  $names = array_filter(scandir($rootdir, SCANDIR_SORT_NONE), function($n) { return $n != '.' && $n != '..'; });
+  $names = array_filter(scandir($rootdir, SCANDIR_SORT_NONE), function($n){return $n != '.' && $n != '..';});
   natcasesort($names);
   foreach ($names as $name) {
-    if (is_dir($rootdir . $name)) {
+    if (is_dir($rootdir.$name)) {
       $dirs[] = $name;
     } else {
       $files[] = $name;
     }
   }
   foreach ($dirs as $name) {
-    $htmlRel  = htmlspecialchars($rootdir . $name);
-    $htmlName = htmlspecialchars(mb_strlen($name) <= 33 ? $name : mb_substr($name, 0, 30) . '...');
+    $htmlRel  = htmlspecialchars($rootdir.$name);
+    $htmlName = htmlspecialchars(mb_strlen($name) <= 33 ? $name : mb_substr($name, 0, 30).'...');
 
     /* Exclude '.Recycle.Bin' from all directories */
-    if ($name === ".Recycle.Bin") continue;
+    if ($name === '.Recycle.Bin') continue;
 
     /* Exclude folders only when directory is '/mnt/' */
-    if (in_array($name, $excludedFolders) && $rootdir === "/mnt/") continue;
+    if (in_array($name, $excludedFolders) && $rootdir === $topdir) continue;
 
-    echo "<li class='directory collapsed'>$checkbox<a href='#' rel=\"$htmlRel/\">$htmlName</a></li>";
+    if (empty($match) || preg_match("/$match/", $rootdir.$name.'/')) {
+      echo "<li class='directory collapsed'>$checkbox<a href='#' rel=\"$htmlRel/\">$htmlName</a></li>";
+    }
+  }
+  if ($rootdir === $userdir) {
+    // add unassigned devices top level shares
+    foreach ($udShares as $name) if (is_dir($topdir.$name)) {
+      echo "<li class='directory collapsed'>$checkbox<a href='#' rel=\"{$topdir}{$name}/\">$name</a></li>";
+    }
   }
   foreach ($files as $name) {
     $htmlRel  = htmlspecialchars($rootdir . $name);

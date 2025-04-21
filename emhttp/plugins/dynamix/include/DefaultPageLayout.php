@@ -17,9 +17,14 @@ $header  = $display['header'];
 $backgnd = $display['background'];
 $themes1 = in_array($theme,['black','white']);
 $themes2 = in_array($theme,['gray','azure']);
+$themeHtmlClass = "Theme--$theme";
+if ($themes2) {
+  $themeHtmlClass .= " Theme--sidebar";
+}
 $config  = "/boot/config";
 $entity  = $notify['entity'] & 1 == 1;
 $alerts  = '/tmp/plugins/my_alerts.txt';
+$wlan0   = file_exists('/sys/class/net/wlan0');
 
 // adjust the text color in docker log window
 $fgcolor = in_array($theme,['white','azure']) ? '#1c1c1c' : '#f2f2f2';
@@ -28,7 +33,7 @@ exec("sed -ri 's/^\.logLine\{color:#......;/.logLine{color:$fgcolor;/' $docroot/
 function annotate($text) {echo "\n<!--\n",str_repeat("#",strlen($text)),"\n$text\n",str_repeat("#",strlen($text)),"\n-->\n";}
 ?>
 <!DOCTYPE html>
-<html <?=$display['rtl']?>lang="<?=strtok($locale,'_')?:'en'?>">
+<html <?=$display['rtl']?>lang="<?=strtok($locale,'_')?:'en'?>" class="<?= $themeHtmlClass ?>">
 <head>
 <title><?=_var($var,'NAME')?>/<?=_var($myPage,'name')?></title>
 <meta http-equiv="Content-Type" content="text/html; charset=utf-8">
@@ -44,9 +49,12 @@ function annotate($text) {echo "\n<!--\n",str_repeat("#",strlen($text)),"\n$text
 <link type="text/css" rel="stylesheet" href="<?autov("/webGui/styles/font-awesome.css")?>">
 <link type="text/css" rel="stylesheet" href="<?autov("/webGui/styles/context.standalone.css")?>">
 <link type="text/css" rel="stylesheet" href="<?autov("/webGui/styles/jquery.sweetalert.css")?>">
-<link type="text/css" rel="stylesheet" href="<?autov("/webGui/styles/default-$theme.css")?>">
-<link type="text/css" rel="stylesheet" href="<?autov("/webGui/styles/dynamix-$theme.css")?>">
-<link type="text/css" rel="stylesheet" href="<?autov("/webGui/styles/defaultpagelayout.css")?>">
+<link type="text/css" rel="stylesheet" href="<?autov("/webGui/styles/jquery.ui.css")?>">
+
+<link type="text/css" rel="stylesheet" href="<?autov("/webGui/styles/default-color-palette.css")?>">
+<link type="text/css" rel="stylesheet" href="<?autov("/webGui/styles/default-base.css")?>">
+<link type="text/css" rel="stylesheet" href="<?autov("/webGui/styles/default-dynamix.css")?>">
+<link type="text/css" rel="stylesheet" href="<?autov("/webGui/styles/themes/{$display['theme']}.css")?>">
 
 <style>
 <?if (empty($display['width'])):?>
@@ -58,25 +66,30 @@ function annotate($text) {echo "\n<!--\n",str_repeat("#",strlen($text)),"\n$text
 @media (min-width:1281px){#displaybox{min-width:1280px;margin:0 <?=$themes1?'10px':'auto'?>}}
 @media (min-width:1921px){#displaybox{min-width:1280px;margin:0 <?=$themes1?'20px':'auto'?>}}
 <?endif;?>
+
 <?if ($display['font']):?>
 html{font-size:<?=$display['font']?>%}
 <?endif;?>
+
 <?if ($header):?>
 #header,#header .logo,#header .text-right a{color:#<?=$header?>}
 #header .block{background-color:transparent}
 <?endif;?>
+
 <?if ($backgnd):?>
-#header{background-color:#<?=$backgnd?>}
-<?if ($themes1):?>
-.nav-tile{background-color:#<?=$backgnd?>}
-<?if ($header):?>
-.nav-item a,.nav-user a{color:#<?=$header?>}
-.nav-item.active:after{background-color:#<?=$header?>}
+  #header{background-color:#<?=$backgnd?>}
+  <?if ($themes1):?>
+    .nav-tile{background-color:#<?=$backgnd?>}
+    <?if ($header):?>
+      .nav-item a,.nav-user a{color:#<?=$header?>}
+      .nav-item.active:after{background-color:#<?=$header?>}
+    <?endif;?>
+  <?endif;?>
 <?endif;?>
-<?endif;?>
-<?endif;?>
+
 <?
 $nchan = ['webGui/nchan/notify_poller','webGui/nchan/session_check'];
+if ($wlan0) $nchan[] = 'webGui/nchan/wlan0';
 $safemode = _var($var,'safeMode')=='yes';
 $tasks = find_pages('Tasks');
 $buttons = find_pages('Buttons');
@@ -103,9 +116,13 @@ if (!file_exists($notes)) file_put_contents($notes,shell_exec("$docroot/plugins/
 <script>
 String.prototype.actionName = function(){return this.split(/[\\/]/g).pop();}
 String.prototype.channel = function(){return this.split(':')[1].split(',').findIndex((e)=>/\[\d\]/.test(e));}
+NchanSubscriber.prototype.monitor = function(){subscribers.push(this);}
 
 Shadowbox.init({skipSetup:true});
 context.init();
+
+// list of nchan subscribers to start/stop at focus change
+var subscribers = [];
 
 // server uptime
 var uptime = <?=strtok(exec("cat /proc/uptime"),' ')?>;
@@ -138,6 +155,7 @@ function pauseEvents(id) {
     if (!id || i==id) clearTimeout(timer);
   });
 }
+
 function resumeEvents(id,delay) {
   var startDelay = delay||50;
   $.each(timers, function(i,timer) {
@@ -145,9 +163,11 @@ function resumeEvents(id,delay) {
     startDelay += 50;
   });
 }
+
 function plus(value,single,plural,last) {
   return value>0 ? (value+' '+(value==1?single:plural)+(last?'':', ')) : '';
 }
+
 function updateTime() {
   var now = new Date();
   var days = parseInt(uptime/86400);
@@ -177,6 +197,7 @@ function updateTime() {
   }
   setTimeout(updateTime,1000);
 }
+
 function refresh(top) {
   if (typeof top === 'undefined') {
     for (var i=0,element; element=document.querySelectorAll('input,button,select')[i]; i++) {element.disabled = true;}
@@ -187,11 +208,13 @@ function refresh(top) {
     location.reload();
   }
 }
+
 function initab(page) {
   $.removeCookie('one');
   $.removeCookie('tab');
   if (page != null) location.replace(page);
 }
+
 function settab(tab) {
 <?switch ($myPage['name']):?>
 <?case'Main':?>
@@ -200,13 +223,14 @@ function settab(tab) {
   $.cookie('one','tab1');
 <?endif;?>
 <?break;?>
-<?case'Cache':case'Data':case'Flash':case'Parity':?>
+<?case'Cache':case'Data':case'Device':case'Flash':case'Parity':?>
   $.cookie('one',tab);
 <?break;?>
 <?default:?>
-  $.cookie(($.cookie('one')==null?'tab':'one'),tab);
+  $.cookie('one',tab);
 <?endswitch;?>
 }
+
 function done(key) {
   var url = location.pathname.split('/');
   var path = '/'+url[1];
@@ -214,10 +238,12 @@ function done(key) {
   $.removeCookie('one');
   location.replace(path);
 }
+
 function chkDelete(form, button) {
   button.value = form.confirmDelete.checked ? "<?=_('Delete')?>" : "<?=_('Apply')?>";
   button.disabled = false;
 }
+
 function makeWindow(name,height,width) {
   var top = (screen.height-height)/2;
   if (top < 0) {top = 0; height = screen.availHeight;}
@@ -225,6 +251,7 @@ function makeWindow(name,height,width) {
   if (left < 0) {left = 0; width = screen.availWidth;}
   return window.open('',name,'resizeable=yes,scrollbars=yes,height='+height+',width='+width+',top='+top+',left='+left);
 }
+
 function openBox(cmd,title,height,width,load,func,id) {
   // open shadowbox window (run in foreground)
   // included for legacy purposes, replaced by openPlugin
@@ -233,6 +260,7 @@ function openBox(cmd,title,height,width,load,func,id) {
   var options = load ? (func ? {modal:true,onClose:function(){setTimeout(func+'('+'"'+(id||'')+'")');}} : {modal:true,onClose:function(){location.reload();}}) : {modal:false};
   Shadowbox.open({content:run, player:'iframe', title:title, height:Math.min(screen.availHeight,800), width:Math.min(screen.availWidth,1200), options:options});
 }
+
 function openWindow(cmd,title,height,width) {
   // open regular window (run in background)
   // included for legacy purposes, replaced by openTerminal
@@ -250,9 +278,10 @@ function openWindow(cmd,title,height,width) {
   makeWindow(window_name,height,width);
   form.submit();
 }
+
 function openTerminal(tag,name,more) {
   if (/MSIE|Edge/.test(navigator.userAgent)) {
-    swal({title:"_(Unsupported Feature)_",text:"_(Sorry, this feature is not supported by MSIE/Edge)_.<br>_(Please try a different browser)_",type:'error',html:true,confirmButtonText:"_(Ok)_"});
+    swal({title:"_(Unsupported Feature)_",text:"_(Sorry, this feature is not supported by MSIE/Edge)_.<br>_(Please try a different browser)_",type:'error',html:true,animation:'none',confirmButtonText:"_(Ok)_"});
     return;
   }
   // open terminal window (run in background)
@@ -261,6 +290,7 @@ function openTerminal(tag,name,more) {
   var socket = ['ttyd','syslog'].includes(tag) ? '/webterminal/'+tag+'/' : '/logterminal/'+name+(more=='.log'?more:'')+'/';
   $.get('/webGui/include/OpenTerminal.php',{tag:tag,name:name,more:more},function(){setTimeout(function(){tty_window.location=socket; tty_window.focus();},200);});
 }
+
 function bannerAlert(text,cmd,plg,func,start) {
   $.post('/webGui/include/StartCommand.php',{cmd:cmd,pid:1},function(pid) {
     if (pid == 0) {
@@ -297,6 +327,7 @@ function bannerAlert(text,cmd,plg,func,start) {
     }
   });
 }
+
 function openPlugin(cmd,title,plg,func,start=0,button=0) {
   // start  = 0 : run command only when not already running (default)
   // start  = 1 : run command unconditionally
@@ -320,6 +351,7 @@ function openPlugin(cmd,title,plg,func,start=0,button=0) {
     $('button.confirm').prop('disabled',button!=0);
   });
 }
+
 function openDocker(cmd,title,plg,func,start=0,button=0) {
   // start  = 0 : run command only when not already running (default)
   // start  = 1 : run command unconditionally
@@ -343,6 +375,7 @@ function openDocker(cmd,title,plg,func,start=0,button=0) {
     $('button.confirm').prop('disabled',button==0);
   });
 }
+
 function openVMAction(cmd,title,plg,func,start=0,button=0) {
   // start  = 0 : run command only when not already running (default)
   // start  = 1 : run command unconditionally
@@ -366,6 +399,7 @@ function openVMAction(cmd,title,plg,func,start=0,button=0) {
     $('button.confirm').prop('disabled',button==0);
   });
 }
+
 function abortOperation(pid) {
   swal({title:"<?=_('Abort background operation')?>",text:"<?=_('This may leave an unknown state')?>",html:true,animation:'none',type:'warning',showCancelButton:true,confirmButtonText:"<?=_('Proceed')?>",cancelButtonText:"<?=_('Cancel')?>"},function(){
     $.post('/webGui/include/StartCommand.php',{kill:pid},function() {
@@ -379,6 +413,7 @@ function abortOperation(pid) {
     });
   });
 }
+
 function openChanges(cmd,title,nchan,button=0) {
   $('div.spinner.fixed').show();
   // button = 0 : hide CLOSE button (default)
@@ -395,6 +430,7 @@ function openChanges(cmd,title,nchan,button=0) {
     $('button.confirm').text("<?=_('Done')?>").prop('disabled',false).show();
   });
 }
+
 function openAlert(cmd,title,func) {
   $.post('/webGui/include/StartCommand.php',{cmd:cmd,start:2},function(data) {
     $('div.spinner.fixed').hide();
@@ -405,11 +441,12 @@ function openAlert(cmd,title,func) {
     $('pre#swalbody').html(data);
   });
 }
+
 function openDone(data) {
   if (data == '_DONE_') {
     $('div.spinner.fixed').hide();
     $('button.confirm').text("<?=_('Done')?>").prop('disabled',false).show();
-    if ( typeof ca_done_override !== 'undefined' ) {
+    if (typeof ca_done_override !== 'undefined') {
       if (ca_done_override == true) {
         $("button.confirm").trigger("click");
         ca_done_override = false;
@@ -419,6 +456,7 @@ function openDone(data) {
   }
   return false;
 }
+
 function openError(data) {
   if (data == '_ERROR_') {
     $('div.spinner.fixed').hide();
@@ -427,16 +465,20 @@ function openError(data) {
   }
   return false;
 }
+
 function showStatus(name,plugin,job) {
   $.post('/webGui/include/ProcessStatus.php',{name:name,plugin:plugin,job:job},function(status){$(".tabs").append(status);});
 }
+
 function showFooter(data, id) {
   if (id !== undefined) $('#'+id).remove();
   $('#copyright').prepend(data);
 }
+
 function showNotice(data) {
   $('#user-notice').html(data.replace(/<a>(.*)<\/a>/,"<a href='/Plugins'>$1</a>"));
 }
+
 function escapeQuotes(form) {
   $(form).find('input[type=text]').each(function(){$(this).val($(this).val().replace(/"/g,'\\"'));});
 }
@@ -514,12 +556,14 @@ function removeRebootNotice(message="<?=_('You must reboot for changes to take e
 function showUpgradeChanges() { /** @note can likely be removed, not used in webgui or api repos */
   openChanges("showchanges /tmp/plugins/unRAIDServer.txt","<?=_('Release Notes')?>");
 }
+
 function showUpgrade(text,noDismiss=false) { /** @note can likely be removed, not used in webgui or api repos */
   if ($.cookie('os_upgrade')==null) {
     if (osUpgradeWarning) removeBannerWarning(osUpgradeWarning);
     osUpgradeWarning = addBannerWarning(text.replace(/<a>(.+?)<\/a>/,"<a href='#' onclick='openUpgrade()'>$1</a>").replace(/<b>(.*)<\/b>/,"<a href='#' onclick='document.rebootNow.submit()'>$1</a>"),false,noDismiss);
   }
 }
+
 function hideUpgrade(set) { /** @note can likely be removed, not used in webgui or api repos */
   removeBannerWarning(osUpgradeWarning);
   if (set)
@@ -527,15 +571,17 @@ function hideUpgrade(set) { /** @note can likely be removed, not used in webgui 
   else
     $.removeCookie('os_upgrade');
 }
+
 function confirmUpgrade(confirm) {
   if (confirm) {
-    swal({title:"<?=_('Update')?> Unraid OS",text:"<?=_('Do you want to update to the new version')?>?",type:'warning',html:true,showCancelButton:true,closeOnConfirm:false,confirmButtonText:"<?=_('Proceed')?>",cancelButtonText:"<?=_('Cancel')?>"},function(){
+    swal({title:"<?=_('Update')?> Unraid OS",text:"<?=_('Do you want to update to the new version')?>?",type:'warning',html:true,animation:'none',showCancelButton:true,closeOnConfirm:false,confirmButtonText:"<?=_('Proceed')?>",cancelButtonText:"<?=_('Cancel')?>"},function(){
       openPlugin("plugin update unRAIDServer.plg","<?=_('Update')?> Unraid OS");
     });
   } else {
     openPlugin("plugin update unRAIDServer.plg","<?=_('Update')?> Unraid OS");
   }
 }
+
 function openUpgrade() {
   hideUpgrade();
   $.get('/plugins/dynamix.plugin.manager/include/ShowPlugins.php',{cmd:'alert'},function(data) {
@@ -548,11 +594,13 @@ function openUpgrade() {
     }
   });
 }
+
 function digits(number) {
   if (number < 10) return 'one';
   if (number < 100) return 'two';
   return 'three';
 }
+
 function openNotifier() {
   $.post('/webGui/include/Notify.php',{cmd:'get',csrf_token:csrf_token},function(msg) {
     $.each($.parseJSON(msg), function(i, notify){
@@ -569,6 +617,7 @@ function openNotifier() {
     });
   });
 }
+
 function closeNotifier() {
   $.post('/webGui/include/Notify.php',{cmd:'get',csrf_token:csrf_token},function(msg) {
     $.each($.parseJSON(msg), function(i, notify){
@@ -577,17 +626,38 @@ function closeNotifier() {
     $('div.jGrowl').find('div.jGrowl-close').trigger('click');
   });
 }
+
 function viewHistory() {
   location.replace('/Tools/NotificationsArchive');
 }
+
 function flashReport() {
   $.post('/webGui/include/Report.php',{cmd:'config'},function(check){
     if (check>0) addBannerWarning("<?=_('Your flash drive is corrupted or offline').'. '._('Post your diagnostics in the forum for help').'.'?> <a target='_blank' href='https://docs.unraid.net/go/changing-the-flash-device/'><?=_('See also here')?></a>");
   });
 }
+
 $(function() {
-  var tab = $.cookie('one')||$.cookie('tab')||'tab1';
-  if (tab=='tab0') tab = 'tab'+$('input[name$="tabs"]').length; else if ($('#'+tab).length==0) {initab(); tab = 'tab1';}
+  let tab;
+<?switch ($myPage['name']):?>
+<?case'Main':?>
+  tab = $.cookie('tab')||'tab1';
+<?break;?>
+<?case'Cache':case'Data':case'Device':case'Flash':case'Parity':?>
+  tab = $.cookie('one')||'tab1';
+<?break;?>
+<?default:?>
+  tab = $.cookie('one')||'tab1';
+<?endswitch;?>
+  /* Check if the tab is 'tab0' */
+  if (tab === 'tab0') {
+    /* Set tab to the last available tab based on input[name$="tabs"] length */
+    tab = 'tab' + $('input[name$="tabs"]').length;
+  } else if ($('#' + tab).length === 0) {
+    /* If the tab element does not exist, initialize a tab and set to 'tab1' */
+    initab();
+    tab = 'tab1';
+  }
   $('#'+tab).attr('checked', true);
   updateTime();
   $.jGrowl.defaults.closeTemplate = '<i class="fa fa-close"></i>';
@@ -636,6 +706,7 @@ $.ajaxPrefilter(function(s, orig, xhr){
     </div>
     <?include "$docroot/plugins/dynamix.my.servers/include/myservers2.php"?>
   </div>
+  <a href="#" class="move_to_end" title="<?=_('Move To End')?>"><i class="fa fa-arrow-circle-down"></i></a>
   <a href="#" class="back_to_top" title="<?=_('Back To Top')?>"><i class="fa fa-arrow-circle-up"></i></a>
 <?
 // Build page menus
@@ -655,7 +726,7 @@ echo "</div>";
 echo "<div class='nav-tile right'>";
 if (isset($myPage['Lock'])) {
   $title = $themes2 ?  "" : _('Unlock sortable items');
-  echo "<div class='nav-item LockButton util'><a 'href='#' class='hand' onclick='LockButton();return false;' title=\"$title\"><b class='icon-u-lock system green-text'></b><span>"._('Unlock sortable items')."</span></a></div>";
+  echo "<div class='nav-item LockButton util'><a href='#' class='hand' onclick='LockButton();return false;' title=\"$title\"><b class='icon-u-lock system green-text'></b><span>"._('Unlock sortable items')."</span></a></div>";
 }
 if ($display['usage']) my_usage();
 
@@ -698,7 +769,7 @@ unset($buttons,$button);
 
 // Build page content
 // Reload page every X minutes during extended viewing?
-if (isset($myPage['Load']) && $myPage['Load']>0) echo "\n<script>timers.reload = setTimeout(function(){location.reload();},".($myPage['Load']*60000).");</script>\n";
+if (isset($myPage['Load']) && $myPage['Load'] > 0) echo "\n<script>timers.reload = setInterval(function(){if (nchanPaused === false)location.reload();},".($myPage['Load']*60000).");</script>\n";
 echo "<div class='tabs'>";
 $tab = 1;
 $pages = [];
@@ -786,26 +857,9 @@ unset($pages,$page,$pgs,$pg,$icon,$nchan,$running,$start,$stop,$row,$script,$opt
 <div class="spinner fixed"></div>
 <form name="rebootNow" method="POST" action="/webGui/include/Boot.php"><input type="hidden" name="cmd" value="reboot"></form>
 <iframe id="progressFrame" name="progressFrame" frameborder="0"></iframe>
-<?
-// Build footer
-annotate('Footer');
-echo '<div id="footer"><span id="statusraid"><span id="statusbar">';
-$progress = (_var($var,'fsProgress')!='') ? "&bullet;<span class='blue strong tour'>{$var['fsProgress']}</span>" : "";
-switch (_var($var,'fsState')) {
-case 'Stopped':
-  echo "<span class='red strong'><i class='fa fa-stop-circle'></i> ",_('Array Stopped'),"</span>$progress"; break;
-case 'Starting':
-  echo "<span class='orange strong'><i class='fa fa-pause-circle'></i> ",_('Array Starting'),"</span>$progress"; break;
-case 'Stopping':
-  echo "<span class='orange strong'><i class='fa fa-pause-circle'></i> ",_('Array Stopping'),"</span>$progress"; break;
-default:
-  echo "<span class='green strong'><i class='fa fa-play-circle'></i> ",_('Array Started'),"</span>$progress"; break;
-}
-echo "</span></span><span id='countdown'></span><span id='user-notice' class='red-text'></span>";
-echo "<span id='copyright'>Unraid&reg; webGui &copy;2024, Lime Technology, Inc.";
-echo " <a href='https://docs.unraid.net/go/manual/' target='_blank' title=\""._('Online manual')."\"><i class='fa fa-book'></i> "._('manual')."</a>";
-echo "</span></div>";
-?>
+
+<? require_once "$docroot/webGui/include/DefaultPageLayout/Footer.php"; ?>
+
 <script>
 // Firefox specific workaround, not needed anymore in firefox version 100 and higher
 //if (typeof InstallTrigger!=='undefined') $('#nav-block').addClass('mozilla');
@@ -842,7 +896,7 @@ function parseINI(msg) {
 // unraid animated logo
 var unraid_logo = '<?readfile("$docroot/webGui/images/animated-logo.svg")?>';
 
-var defaultPage = new NchanSubscriber('/sub/session,var<?=$entity?",notify":""?>',{subscriber:'websocket'});
+var defaultPage = new NchanSubscriber('/sub/session,var<?=$entity?",notify":""?>',{subscriber:'websocket', reconnectTimeout:5000});
 defaultPage.on('message', function(msg,meta) {
   switch (meta.id.channel()) {
   case 0:
@@ -905,7 +959,21 @@ defaultPage.on('message', function(msg,meta) {
   }
 });
 
-var nchan_plugins = new NchanSubscriber('/sub/plugins',{subscriber:'websocket'});
+<?if ($wlan0):?>
+function wlanSettings() {
+  $.cookie('one','tab<?=count(glob("$docroot/webGui/Eth*.page"))?>');
+  window.location = '/Settings/NetworkSettings';
+}
+
+var nchan_wlan0 = new NchanSubscriber('/sub/wlan0',{subscriber:'websocket', reconnectTimeout:5000});
+nchan_wlan0.on('message', function(msg) {
+  var wlan = JSON.parse(msg);
+  $('#wlan0').removeClass().addClass(wlan.color).attr('title',wlan.title);
+});
+nchan_wlan0.start();
+<?endif;?>
+
+var nchan_plugins = new NchanSubscriber('/sub/plugins',{subscriber:'websocket', reconnectTimeout:5000});
 nchan_plugins.on('message', function(data) {
   if (!data || openDone(data)) return;
   var box = $('pre#swaltext');
@@ -918,7 +986,7 @@ nchan_plugins.on('message', function(data) {
   box.html(text.join('<br>')).scrollTop(box[0].scrollHeight);
 });
 
-var nchan_docker = new NchanSubscriber('/sub/docker',{subscriber:'websocket'});
+var nchan_docker = new NchanSubscriber('/sub/docker',{subscriber:'websocket', reconnectTimeout:5000});
 nchan_docker.on('message', function(data) {
   if (!data || openDone(data)) return;
   var box = $('pre#swaltext');
@@ -967,7 +1035,7 @@ nchan_docker.on('message', function(data) {
   box.scrollTop(box[0].scrollHeight);
 });
 
-var nchan_vmaction = new NchanSubscriber('/sub/vmaction',{subscriber:'websocket'});
+var nchan_vmaction = new NchanSubscriber('/sub/vmaction',{subscriber:'websocket', reconnectTimeout:5000});
 nchan_vmaction.on('message', function(data) {
   if (!data || openDone(data) || openError(data)) return;
   var box = $('pre#swaltext');
@@ -1016,13 +1084,12 @@ nchan_vmaction.on('message', function(data) {
   box.scrollTop(box[0].scrollHeight);
 });
 
-var backtotopoffset = 250;
-var backtotopduration = 500;
+const scrollDuration = 500;
 $(window).scroll(function() {
-  if ($(this).scrollTop() > backtotopoffset) {
-    $('.back_to_top').fadeIn(backtotopduration);
+  if ($(this).scrollTop() > 0) {
+    $('.back_to_top').fadeIn(scrollDuration);
   } else {
-    $('.back_to_top').fadeOut(backtotopduration);
+    $('.back_to_top').fadeOut(scrollDuration);
   }
 <?if ($themes1):?>
   var top = $('div#header').height()-1; // header height has 1 extra pixel to cover overlap
@@ -1031,9 +1098,16 @@ $(window).scroll(function() {
   $('div.upgrade_notice').css($(this).scrollTop() > 24 ? {position:'fixed',top:'0'} : {position:'absolute',top:'24px'});
 <?endif;?>
 });
+
+$('.move_to_end').click(function(event) {
+  event.preventDefault();
+  $('html,body').animate({scrollTop:$(document).height()},scrollDuration);
+  return false;
+});
+
 $('.back_to_top').click(function(event) {
   event.preventDefault();
-  $('html,body').animate({scrollTop:0},backtotopduration);
+  $('html,body').animate({scrollTop:0},scrollDuration);
   return false;
 });
 
@@ -1110,45 +1184,156 @@ $(function() {
     });
   }
   $('form').append($('<input>').attr({type:'hidden', name:'csrf_token', value:csrf_token}));
+  setInterval(function(){if ($(document).height() > $(window).height()) $('.move_to_end').fadeIn(scrollDuration); else $('.move_to_end').fadeOut(scrollDuration);},250);
 });
 
-$('body').on("click","a", function(e) {
-  href = $(this).attr("href").trim();
-  target = $(this).attr("target");
+var gui_pages_available = [];
+<?
+  $gui_pages = glob("/usr/local/emhttp/plugins/*/*.page");
+  array_walk($gui_pages,function($value,$key){ ?>
+    gui_pages_available.push('<?=basename($value,".page")?>'); <?
+  });
+?>
 
-  if ( href ) {
-    if ( href.indexOf("/") == 0 ) {   // all internal links start with "/"
+function isValidURL(url) {
+  try {
+    var ret = new URL(url);
+    return ret;
+  } catch (err) {
+    return false;
+  }
+}
+
+$('body').on('click','a,.ca_href', function(e) {
+  if ($(this).hasClass('ca_href')) {
+    var ca_href = true;
+    var href=$(this).attr('data-href');
+    var target=$(this).attr('data-target');
+  } else {
+    var ca_href = false;
+    var href = $(this).attr('href');
+    var target = $(this).attr('target');
+  }
+  if (href) {
+    href = href.trim();
+    // Sanitize href to prevent XSS
+    href = href.replace(/[<>"]/g, '');
+    if (href.match('https?://[^\.]*.(my)?unraid.net/') || href.indexOf('https://unraid.net/') == 0 || href == 'https://unraid.net' || href.indexOf('http://lime-technology.com') == 0) {
+      if (ca_href) window.open(href,target);
       return;
     }
-    if ( href.match('https://[^\.]*.(my)?unraid.net/') || href.indexOf("https://unraid.net/") == 0 || href == "https://unraid.net" || href.indexOf("http://lime-technology.com/") == 0) {
-      return;
-    } else {
-      if (href !== "#" && href.indexOf("javascript") !== 0) {
-        e.preventDefault();
-        swal({
-          title: "<?=_('External Link')?>",
-          text: "<?=_('Clicking OK will take you to a 3rd party website not associated with Limetech')?><br><br><b>"+href,
-          html: true,
-          type: 'warning',
-          showCancelButton: true,
-          showConfirmButton: true,
-          cancelButtonText: "<?=_('Cancel')?>",
-          confirmButtonText: "<?=_('OK')?>"
-        },function(isConfirm) {
-          if (isConfirm) {
-            var popupOpen = window.open(href,target);
-            if ( !popupOpen || popupOpen.closed || typeof popupOpen == "undefined" ) {
-              var popupWarning = addBannerWarning("<?=_('Popup Blocked.');?>");
-              setTimeout(function() {
-                removeBannerWarning(popupWarning);}
-              ,10000);
-            }
-          }
-        });
+    if (href !== '#' && href.indexOf('javascript') !== 0) {
+      var dom = isValidURL(href);
+      if (dom == false) {
+        if (href.indexOf('/') == 0) return;  // all internal links start with "/"
+      var baseURLpage = href.split('/');
+        if (gui_pages_available.includes(baseURLpage[0])) return;
       }
+      if ($(this).hasClass('localURL')) return;
+      try {
+        var domainsAllowed = JSON.parse($.cookie('allowedDomains'));
+      } catch(e) {
+        var domainsAllowed = new Object();
+      }
+      $.cookie('allowedDomains',JSON.stringify(domainsAllowed),{expires:3650}); // rewrite cookie to further extend expiration by 400 days
+      if (domainsAllowed[dom.hostname]) return;
+      e.preventDefault();
+      swal({
+        title: "<?=_('External Link')?>",
+        text: "<span title='"+href+"'><?=_('Clicking OK will take you to a 3rd party website not associated with Lime Technology')?><br><br><b>"+href+"<br><br><input id='Link_Always_Allow' type='checkbox'></input><?=_('Always Allow')?> "+dom.hostname+"</span>",
+        html: true,
+        animation: 'none',
+        type: 'warning',
+        showCancelButton: true,
+        showConfirmButton: true,
+        cancelButtonText: "<?=_('Cancel')?>",
+        confirmButtonText: "<?=_('OK')?>"
+      },function(isConfirm) {
+        if (isConfirm) {
+          if ($('#Link_Always_Allow').is(':checked')) {
+            domainsAllowed[dom.hostname] = true;
+            $.cookie('allowedDomains',JSON.stringify(domainsAllowed),{expires:3650});
+          }
+          var popupOpen = window.open(href,target);
+          if (!popupOpen || popupOpen.closed || typeof popupOpen == 'undefined') {
+            var popupWarning = addBannerWarning("<?=_('Popup Blocked');?>");
+            setTimeout(function(){removeBannerWarning(popupWarning);},10000);
+          }
+        }
+      });
     }
   }
 });
+
+// Start & stop live updates when window loses focus
+var nchanPaused = false;
+var blurTimer = false;
+
+$(window).focus(function() {
+  nchanFocusStart();
+});
+
+// Stop nchan on loss of focus
+<? if ( $display['liveUpdate'] == "no" ):?>
+$(window).blur(function() {
+  blurTimer = setTimeout(function(){
+    nchanFocusStop();
+  },30000);
+});
+<?endif;?>
+
+document.addEventListener("visibilitychange", (event) => {
+  <? if ( $display['liveUpdate'] == "no" ):?>
+  if (document.hidden) {
+    nchanFocusStop();
+  }
+<?else:?>
+  if (document.hidden) {
+    nchanFocusStop();
+  } else {
+    nchanFocusStart();
+  }
+<?endif;?>
+});
+
+function nchanFocusStart() {
+  if ( blurTimer !== false ) {
+    clearTimeout(blurTimer);
+    blurTimer = false;
+  }
+
+  if (nchanPaused !== false ) {
+    removeBannerWarning(nchanPaused);
+    nchanPaused = false;
+
+    try {
+      pageFocusFunction();
+    } catch(error) {}
+
+    subscribers.forEach(function(e) {
+      e.start();
+    });
+  }
+}
+
+function nchanFocusStop(banner=true) {
+  if ( subscribers.length ) {
+    if ( nchanPaused === false ) {
+      var newsub = subscribers;
+      subscribers.forEach(function(e) {
+        try {
+          e.stop();
+        } catch(err) {
+          newsub.splice(newsub.indexOf(e,1));
+        }
+      });
+      subscribers = newsub;
+      if ( banner && subscribers.length ) {
+        nchanPaused = addBannerWarning("<?=_('Live Updates Paused');?>",false,true );
+      }
+    }
+  }
+}
 </script>
 </body>
 </html>

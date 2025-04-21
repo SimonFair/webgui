@@ -143,7 +143,7 @@ $https_fqdn6_url = 'https://'._var($nginx,'NGINX_LANFQDN6').$https_port.'/';
 
 $urls = [];
 // push an array of five values into the $urls array:
-//   0 - type of url ['LAN','WAN','WG','TAILSCALE']
+//   0 - type of url ['LAN','WLAN','WAN','WG','TAILSCALE']
 //   1 - the url
 //   3 - the url it redirects to, or null
 //   4 - the certificate file used, or null
@@ -192,19 +192,19 @@ foreach ($nginx as $key => $host) {
   }
 }
 
-// determine whether there are urls for a given interface
-function has_urls($interface) {
+// determine whether there are urls for a given list of interfaces
+function has_urls(array $interfaces) {
   global $urls;
   foreach($urls as $url) {
-    if ($url[0] == $interface) return true;
+    if (in_array($url[0], $interfaces)) return true;
   }
   return false;
 }
 
-// show all urls for a given interface
-function show_urls($interface) {
+// show all urls for a given list of interface
+function show_urls(array $interfaces) {
   global $urls;
-  //   0 - type of url ['LAN','WAN','WG','TAILSCALE']
+  //   0 - type of url ['LAN','WLAN','WAN','WG','TAILSCALE']
   //   1 - the url
   //   3 - the url it redirects to, or null
   //   4 - the certificate file used, or null
@@ -214,9 +214,9 @@ function show_urls($interface) {
   $lineend = "</dd>\n";
   $first = true;
   foreach($urls as $url) {
-    if ($url[0] == $interface) {
-      $msg  = "<a href='$url[1]'>$url[1]</a>";
-      if ($url[2]) $msg .= " "._("redirects to")." <a href='$url[2]'>$url[2]</a>";
+    if (in_array($url[0], $interfaces)) {
+      $msg  = "<a class='localURL' href='$url[1]'>$url[1]</a>";
+      if ($url[2]) $msg .= " "._("redirects to")." <a class='localURL' href='$url[2]'>$url[2]</a>";
       if ($url[3]) $msg .= " "._("uses")." ".$url[3];
       if ($url[4]) $msg .= "<span class='warning'> <i class='fa fa-warning fa-fw'></i> "._("is a self-signed certificate, ignore the browser's warning and proceed to the GUI")."</span>";
       // 2nd+ urls need leading $linestart
@@ -408,23 +408,23 @@ _(Local TLD)_:
 <hr>
 
 _(Local access URLs)_:
-: <? show_urls('LAN'); ?>
+: <? show_urls(['LAN','WLAN']); ?>
 
 :mgmt_local_access_urls_help:
 
-<?if (has_urls('WG')): ?>
+<?if (has_urls(['WG'])): ?>
 
 _(WireGuard URLs)_:
-: <? show_urls('WG'); ?>
+: <? show_urls(['WG']); ?>
 
 :mgmt_wg_access_urls_help:
 
 <?endif;?>
 
-<?if (has_urls('TAILSCALE')): ?>
+<?if (has_urls(['TAILSCALE'])): ?>
 
 _(Tailscale URLs)_:
-: <? show_urls('TAILSCALE'); ?>
+: <? show_urls(['TAILSCALE']); ?>
 
 :mgmt_tailscale_access_urls_help:
 
@@ -438,7 +438,7 @@ _(Self-signed or user-provided certificate)_:
 
 <?if ($cert1URLvalid && _var($var,'USE_SSL')=='yes'):?>
 _(Certificate URL)_:
-: <?="<a href='https://$cert1URL$https_port'>$cert1URL</a>"?>
+: <?="<a class='localURL' href='https://$cert1URL$https_port'>$cert1URL</a>"?>
 
 <?elseif ($cert1URLvalid):?>
 _(Certificate URL)_:
@@ -474,7 +474,7 @@ _(Unraid Let's Encrypt certificate)_:
 : <?=$cert2File?>
 
 _(Certificate URL)_:
-: <?="<a href='https://$subject2URL$https_port'>$cert2Subject</a>"?>
+: <?="<a class='localURL' href='https://$subject2URL$https_port'>$cert2Subject</a>"?>
 
 _(Certificate issuer)_:
 : <?=$cert2Issuer?>
@@ -508,7 +508,7 @@ _(Tailscale Let's Encrypt certificate)_:
 : <?=$cert3File?>
 
 _(Certificate URL)_:
-: <?="<a href='https://$cert3Subject$https_port'>$cert3Subject</a>"?>
+: <?="<a class='localURL' href='https://$cert3Subject$https_port'>$cert3Subject</a>"?>
 
 _(Certificate issuer)_:
 : <?=$cert3Issuer?>
@@ -522,7 +522,7 @@ _(Certificate expiration)_:
 
 </form>
 
-<?if (has_urls('WG')): ?>
+<?if (has_urls(['WG'])): ?>
 
 <small>"WireGuard" and the "WireGuard" logo are registered trademarks of Jason A. Donenfeld</small>
 

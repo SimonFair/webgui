@@ -30,6 +30,8 @@ CERTPATH="$SSL/certs/certificate_bundle.pem"
 TSCERTPATH="$SSL/certs/ts_bundle.pem"
 MYSERVERS="/boot/config/plugins/dynamix.my.servers/myservers.cfg"
 DEFAULTS="/etc/default/nginx"
+SYSTEM="/sys/class/net"
+SYSLOG="/var/log/syslog"
 
 # Load defaults
 # Defines NGINX_CUSTOMFA for custom Content-Security-Policy frame-ancestors url
@@ -147,6 +149,7 @@ build_servers(){
 	        nchan_publisher;
 	        nchan_channel_id "$1";
 	        nchan_message_buffer_length $arg_buffer_length;
+	        nchan_message_timeout 0;
 	    }
 	    location ~ /nchan_stub_status$ {
 	        nchan_stub_status;
@@ -385,6 +388,7 @@ build_locations(){
 	#
 	location ~ /sub/(.*)$ {
 	    nchan_subscriber;
+	    nchan_subscriber_timeout 0;
 	    # nchan_authorize_request <url here>
 	    nchan_channel_id "$1";
 	    nchan_channel_id_split_delimiter ",";
@@ -459,6 +463,13 @@ build_locations(){
 	    allow all;
 	}
 	#
+	# redirect.htm available without authentication
+	#
+	location = /redirect {
+	    rewrite ^ /redirect.htm break;
+	    allow all;
+	}
+	#
 	# proxy update.htm and logging.htm scripts to emhttpd listening on local socket
 	#
 	location = /update.htm {
@@ -524,10 +535,14 @@ build_ssl(){
   LANMDNS=${LANNAME}${LOCAL_TLD:+.$LOCAL_TLD}
 
   # fetch LAN IP address (read management interface eth0)
-  sed -n '/^\[eth0\]$/,/^TYPE/p' $NETWORK_INI >$NETWORK_INI.eth0
-  LANIP=$(scan IPADDR:0 $NETWORK_INI.eth0);
-  LANIP6=$(scan IPADDR6:0 $NETWORK_INI.eth0);
-  rm -f $NETWORK_INI.eth0
+  [[ -e $SYSTEM/bond0 ]] && DEV=bond0 || DEV=eth0
+  [[ -e $SYSTEM/br0 ]] && DEV=br0
+  LANIP=$(ip -4 -br addr show $DEV scope global | sed -r 's/\/[0-9]+//g' | awk '{print $3;exit}')
+  LANIP6=$(ip -6 -br addr show $DEV scope global -temporary -deprecated | sed -r 's/\/[0-9]+//g' | awk '{print $3;exit}')
+
+  # try wireless connection if no IP address on interface eth0
+  [[ -z $LANIP && -e $SYSTEM/wlan0 ]] && LANIP=$(ip -4 -br addr show wlan0 scope global | sed -r 's/\/[0-9]+//g' | awk '{print $3;exit}')
+  [[ -z $LANIP6 && -e $SYSTEM/wlan0 ]] && LANIP6=$(ip -6 -br addr show wlan0 scope global -temporary -deprecated | sed -r 's/\/[0-9]+//g' | awk '{print $3;exit}')
 
   # regenerate self-signed cert if local TLD changes */
   SELFCERTPATH=$SSL/certs/${LANNAME}_unraid_bundle.pem
@@ -628,6 +643,7 @@ build_ssl(){
   echo "NGINX_LANIP6=\"$LANIP6\"" >>$INI
   echo "NGINX_LANNAME=\"$LANNAME\"" >>$INI
   echo "NGINX_LANMDNS=\"$LANMDNS\"" >>$INI
+  echo "NGINX_BIND=\"$BIND\"" >>$INI
   echo "NGINX_CERTPATH=\"$CERTPATH\"" >>$INI
   echo "NGINX_USESSL=\"$USE_SSL\"" >>$INI
   echo "NGINX_PORT=\"$PORT\"" >>$INI
@@ -673,6 +689,7 @@ nginx_waitfor_shutdown(){
     if ! nginx_running; then break; fi
     sleep 1
   done
+  return 0
 }
 
 nginx_check(){
@@ -698,6 +715,10 @@ nginx_start(){
     [[ -x $NGINX ]] && $NGINX -c $CONF 2>/dev/null
     # side-load unraid-api
     unraid_api_control start
+    # resume nchan publishers
+    /usr/local/sbin/monitor_nchan start 
+    rm -f /tmp/publishPaused
+
     if nginx_running; then REPLY="Started"; else REPLY="Failed"; fi
   fi
   log "$DAEMON...  $REPLY."
@@ -710,15 +731,14 @@ nginx_stop(){
     REPLY="Already stopped"
   else
     unraid_api_control stop
+    # pause nchan publishers
+    /usr/local/sbin/monitor_nchan stop
     kill -QUIT $(cat $PID)
     nginx_waitfor_shutdown
-    if ! nginx_running; then
-      REPLY="Stopped"
-    else
-      pkill -f $NGINX
-      nginx_waitfor_shutdown
-      if ! nginx_running; then REPLY="Killed"; else REPLY="Failed"; fi
-    fi
+    # safety hammer
+    pkill -f $NGINX
+    nginx_waitfor_shutdown
+    if ! nginx_running; then REPLY="Stopped"; else REPLY="Failed"; fi
   fi
   log "$DAEMON...  $REPLY."
 }
@@ -730,6 +750,8 @@ nginx_stop_forced(){
     REPLY="Already stopped"
   else
     unraid_api_control stop
+    # stop nchan publishers
+    /usr/local/sbin/monitor_nchan kill
     kill -TERM $(cat $PID)
     nginx_waitfor_shutdown
     if ! nginx_running; then REPLY="Stopped"; else REPLY="Failed"; fi
@@ -760,8 +782,19 @@ nginx_reload(){
     build_ssl
     if nginx_check; then
       log "Reloading $DAEMON configuration..."
+      # pause nchan publishers
+      /usr/local/sbin/monitor_nchan stop
       kill -HUP $(cat $PID)
-      sleep 3
+      sleep 1
+      if  tail -10 $SYSLOG | grep -qm1 'Address already in use'; then
+        # unconditional restart when binding fails
+        sleep 2
+        log "Restarting $DAEMON..."
+        nginx_renew
+      fi
+      # resume nchan publishers
+      /usr/local/sbin/monitor_nchan start
+      rm -f /tmp/publishPaused
     else
       log "Invalid configuration, $DAEMON not reloaded"
       return 1

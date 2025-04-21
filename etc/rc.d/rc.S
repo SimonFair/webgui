@@ -130,11 +130,10 @@ bzcheck(){
 }
 
 bzmount(){
-  local BZFILE=$1
-  local MNTDIR=$2
-  bzcheck $BZFILE
-  /bin/mkdir -p /$MNTDIR
-  /sbin/mount -v -r -t squashfs /boot/$BZFILE /$MNTDIR || abort "cannot mount $BZFILE"
+  local BZDIR=$1
+  local BZFILE=$2
+  local MNTDIR=$3
+  /sbin/mount -v -r -t squashfs /$BZDIR/$BZFILE /$MNTDIR || abort "cannot mount /$BZDIR/$BZFILE"
   # setup an overlayfs
   /bin/mkdir -p /var/local/overlay/$MNTDIR
   /bin/mkdir -p /var/local/overlay-work/$MNTDIR
@@ -145,9 +144,15 @@ if [[ $UNRAIDROOT == "" ]]; then
   bzcheck "bzimage"
   bzcheck "bzroot"
   bzcheck "bzroot-gui"
-
-  bzmount "bzmodules" "lib"
-  bzmount "bzfirmware" "usr"
+  bzcheck "bzmodules"
+  bzcheck "bzfirmware"
+  if [[ -f /boot/config/fastusr ]]; then
+    /bin/cp /boot/bzfirmware /usr
+    bzmount "usr" "bzfirmware" "usr"
+  else
+    bzmount "boot" "bzfirmware" "usr"
+  fi
+  bzmount "boot" "bzmodules" "lib"
 
   # now that /usr is mounted make /etc/rc.d a symlink
   /bin/rm -rf /etc/rc.d
@@ -176,9 +181,13 @@ if [[ $NONVFAT == btrfs || $NONVFAT == xfs ]]; then
   /usr/bin/chmod -R 644 /boot
 fi
 
-# invoke testing hook (only for test versions)
 . /etc/unraid-version
-if [[ -f /boot/config/rc.S.extra && $version =~ beta ]]; then
+# log all PHP warnings (for beta|rc releases)
+if [[ -f /etc/php.d/errors-php.ini && $version =~ -(beta|rc) ]]; then
+  sed -i 's/^error_reporting=.*/error_reporting=E_ALL/' /etc/php.d/errors-php.ini
+fi
+# invoke testing hook (for -(beta|rc).x.y releases)
+if [[ -f /boot/config/rc.S.extra && $version =~ -(beta|rc)\.[0-9]+\.[0-9]+$ ]]; then
   . /boot/config/rc.S.extra
 fi
 # and continue in separate script

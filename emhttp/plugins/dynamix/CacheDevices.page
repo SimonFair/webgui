@@ -23,9 +23,6 @@ function sharename($share) {
   return basename($share,'.cfg');
 }
 ?>
-<link type="text/css" rel="stylesheet" href="<?autov("/webGui/styles/jquery.ui.css")?>">
-<link type="text/css" rel="stylesheet" href="<?autov("/plugins/dynamix.docker.manager/styles/style-$theme.css")?>">
-
 <script>
 function validate(poolname) {
   var valid = /^[a-z]([a-z0-9~._-]*[a-z_-])*$/;

@@ -15,11 +15,15 @@ Tag="share-alt-square"
  */
 ?>
 <?
+if (!empty($name) && !array_key_exists($name, $shares)) {
+  echo "<script>done()</script>";
+  exit;
+}
 $width = [123,300];
 
 if ($name == "") {
-  /* default values when adding new share. */
-  $share = [
+	/* default values when adding new share. */
+	$share = [
 		"nameOrig"		=> "",
 		"name"			=> "",
 		"comment"		=> "",
@@ -33,13 +37,9 @@ if ($name == "") {
 		"cachePool2"	=> "",
 		"cow"			=> "auto"
 	];
-} elseif (array_key_exists($name, $shares)) {
+} else {
 	/* edit existing share. */
 	$share = $shares[$name];
-} else {
-  /* handle share deleted case. */
-  echo "<p class='notice'>"._('Share')." '".htmlspecialchars($name)."' "._('has been deleted').".</p><input type='button' value=\""._('Done')."\" onclick='done()'>";
-  return;
 }
 
 /* If the configuration is pools only, then no array disks are available. */
@@ -56,23 +56,26 @@ if ((! $share['cachePool']) && ($share['cachePool2'])) {
 	$share['cachePool2']	= "";
 }
 
+/* Correct a situation in previous Unraid versions where an array only share has a useCache defined. */
+if ((!$poolsOnly) && ($share['useCache'] == "no")) {
+	$share['cachePool'] = "";
+}
+
 /* Check for non existent pool device. */
-if ($share['cachePool'] && !in_array($share['cachePool'], $pools)) {
-	$poolDefined = false;
+if (($share['cachePool'] && !in_array($share['cachePool'], $pools))) {
 	$share['useCache'] = $share['cachePool2'] ? "yes" : ($poolsOnly ? "no" : "yes");
+	$poolDefined = false;
 } else {
 	$share['useCache'] = $share['useCache'] ?: ($poolsOnly ? "only" : "no");
 	$poolDefined = true;
 }
 
 /* Check for pool 2 (or array) being defined. */
+$poolDefined2 = true;
 if ((($share['useCache'] == "yes") || ($share['useCache'] == "prefer")) && ($poolsOnly) && (!$share['cachePool2'])) {
-	$poolDefined2 = true;
 	$share['useCache'] = "only";
 } else if ($share['cachePool2']) {
 	$poolDefined2 = in_array($share['cachePool2'], $pools);
-} else {
-	$poolDefined2 = true;
 }
 
 $cachePoolCapitalized = compress(my_disk($share['cachePool'],$display['raw']));
@@ -111,15 +114,26 @@ function presetSpace($val) {
 	}
 
 	/* Prepare the fsSize array for each pool */
+	$fsSize	= [];
 	foreach ($pools as $pool) {
 		$fsSize[$pool] = _var($disks[$pool], 'fsSize', 0);
 	}
 
 	/* Get the maximum value from the large array, filtering out non-numeric values */
 	if (!empty($large)) {
-		$fsSize[''] = max(array_filter($large, 'is_numeric'));
+		/* Filter non-numeric values */
+		$numericLarge = array_filter($large, 'is_numeric');
+
+		/* Set the maximum value */
+		$fsSize[''] = !empty($numericLarge) ? max($numericLarge) : 0;
+	} else if (!empty($fsSize)) {
+		/* Filter non-numeric values */
+		$numericFsSize = array_filter($fsSize, 'is_numeric');
+
+		/* Set the minimum value */
+		$fsSize[''] = !empty($numericFsSize) ? min($numericFsSize) : 0;
 	} else {
-		$fsSize[''] = $fsSize[$pool];
+		$fsSize[''] = 0;
 	}
 
 	/* Get the cache pool size */
@@ -208,7 +222,13 @@ function fsSize() {
 
 	/* Set the minimum filesystem size from the array of enabled disks */
 	if (!empty($small)) {
-		$fsSize[''] = min(array_filter($small));
+		/* Filter out non-numeric values and zeros */
+		$numericSmall = array_filter($small, function($value) {
+			return is_numeric($value) && (float)$value > 0;
+		});
+
+		/* Set the minimum value */
+		$fsSize['']	= !empty($numericSmall) ? min($numericSmall) : 0;
 	} else {
 		$fsSize['']	= 0;
 	}
@@ -250,13 +270,22 @@ function fsFree() {
 		$fsFree[$pool] = _var($disks[$pool], 'fsFree', 0);
 	}
 
-	/* Determine the free filesystem space based on the poolsOnly flag */
+	/* Determine the free filesystem space */
 	if (!empty($large)) {
+		/* Filter non-numeric values */
+		$numericLarge = array_filter($large, 'is_numeric');
+
 		/* Set the maximum free filesystem space from the array of enabled disks */
-		$fsFree[''] = max(array_filter($large));
-	} else {
+		$fsFree[''] = !empty($numericLarge) ? max($numericLarge) : 0;
+	} elseif (!empty($fsFree)) {
+		/* Filter non-numeric values */
+		$numericFsFree = array_filter($fsFree, 'is_numeric');
+
 		/* Set the minimum free filesystem space from the pool array */
-		$fsFree[''] = min(array_filter($fsFree));
+		$fsFree[''] = !empty($numericFsFree) ? min($numericFsFree) : 0;
+	} else {
+		/* The minimum free space cannot be determined from the array or pools, so it is set to zero */
+		$fsFree[''] = 0;
 	}
 
 	/* Return the free filesystem space as a JSON encoded string */
@@ -303,7 +332,7 @@ $myDisks = array_filter(array_diff(array_keys(array_filter($disks,'my_disks')), 
 :share_edit_global2_help:
 <?endif;?>
 
-<br />
+<br>
 <div class="clone1">
 <span class="clone">_(Read settings from)_</span><i class="fa fa-arrow-left fa-fw"></i>
 <span class="wrap"><select name="readshare" class="clone" onchange="toggleButton('readshare',false)">
@@ -337,7 +366,7 @@ foreach ($rows as $row) echo $row;
 <input type="hidden" name="shareInclude" value="">
 <input type="hidden" name="shareExclude" value="">
 
-<div markdown="1" class="shade-<?=$display['theme']?>">
+<div markdown="1" class="shade">
 _(Share name)_:
 : <input type="text" id="shareName" name="shareName" maxlength="40" autocomplete="off" spellcheck="false" value="<?=htmlspecialchars($name)?>" oninput="checkName(this.value)" title="_(Hidden share names are not allowed)_" pattern="^[^\.].*"><span id="zfs-name" class="orange-text"><i class="fa fa-warning"></i> _(Share name contains invalid characters for ZFS use)_</span>
 
@@ -388,7 +417,7 @@ _(Exclusive access)_:
 <?endif;?>
 </div>
 
-<div markdown="1" class="shade-<?=$display['theme']?>">
+<div markdown="1" class="shade">
 _(Primary storage (for new files and folders))_:
 : <select id="primary" name="shareCachePool" onchange="form.shareFloor.value='';updateScreen(z(4),'slow')">
   <?=mk_option(primary(), '', _('Array'),  $poolsOnly ? 'disabled' : '')?>
@@ -457,7 +486,7 @@ _(Excluded disk(s))_:
 </div>
 
 </div>
-<div markdown="1" class="shade-<?=$display['theme']?>">
+<div markdown="1" id="secondaryStorage" class="shade">
 _(Secondary storage)_:
 : <select id="secondary" onchange="updateScreen(z(4),'slow')">
   <?=mk_option(secondary(),'0',_('None'))?>
@@ -516,7 +545,7 @@ _(Excluded disk(s))_:
 </div>
 
 </div>
-<div markdown="1" class="shade-<?=$display['theme']?>">
+<div markdown="1" id="moverAction" class="shade">
 <div markdown="1" id="moverDirection1">
 _(Mover action)_:
 : <span class="input"><select id="direction" onchange="updateScreen(z(3),'slow')">
@@ -551,6 +580,9 @@ _(Mover action)_:
 <script>
 let form = document.share_edit;
 
+/* Global flag to skip prepareEdit. */
+let skipPrepareEdit = false;
+
 /* Primary variables to check for valid selection of missing pool. */
 let changeMadePrimary = false;
 let checkRequiredPrimary = false;
@@ -569,6 +601,7 @@ function initDropdown(forceInit) {
 			destroyDropdownIfExists('#s5');
 		<?endif;?>
 	}
+
 	initializeDropdown('#s1', "_(All)_", <?=$width[1]?>);
 	initializeDropdown('#s2', "_(None)_", <?=$width[1]?>);
 	initializeDropdown('#s3', "_(All)_", <?=$width[1]?>);
@@ -580,26 +613,42 @@ function initDropdown(forceInit) {
 
 function initializeDropdown(selector, emptyText, width, firstItemChecksAll = false) {
 	try {
-		$(selector).dropdownchecklist({
-			emptyText: emptyText,
-			width: width,
-			explicitClose: "..._(close)_",
-			firstItemChecksAll: firstItemChecksAll
-		});
+		if ($(selector).length) {
+			$(selector).dropdownchecklist({
+				emptyText: emptyText,
+				width: width,
+				explicitClose: "..._(close)_",
+				firstItemChecksAll: firstItemChecksAll
+			});
+		}
 	} catch (e) {
-		console.error(`Error initializing ${selector}: ` + e.message);
 	}
 }
 
 function destroyDropdownIfExists(selector) {
 	try {
-		$(selector).dropdownchecklist('destroy');
-	} catch (e) {
-		if (e.message.includes('prior to initialization')) {
-			console.log(`${selector} not initialized, skipping destroy.`);
-		} else {
-			console.error(`Error destroying ${selector}: ` + e.message);
+		if ($(selector).length) {
+			$(selector).dropdownchecklist('destroy');
 		}
+	} catch (e) {
+	}
+}
+
+function enableDropdownIfExists(selector) {
+	try {
+		if ($(selector).length) {
+			$(selector).dropdownchecklist('enable');
+		}
+	} catch (e) {
+	}
+}
+
+function disableDropdownIfExists(selector) {
+	try {
+		if ($(selector).length) {
+			$(selector).dropdownchecklist('disable');
+		}
+	} catch (e) {
 	}
 }
 
@@ -629,7 +678,7 @@ function updateScreen(cache, slow) {
 	const moverNoActionText = "<?= addslashes(_('Mover takes no action')) ?>";
 	const moverAction1Text = "<?= addslashes(_('Mover transfers files from Primary storage to Secondary storage')) ?>";
 	const moverAction2Text = "<?= addslashes(_('Mover transfers files from Secondary storage to Primary storage')) ?>";
-	
+
 	switch (cache) {
 		case 'no':
 			$('#primary option:eq(' + z(0) + ')').prop('selected', true);
@@ -640,7 +689,6 @@ function updateScreen(cache, slow) {
 				secondaryDropdown.options[i].disabled = true;
 			}
 			secondaryDropdown.selectedIndex = 0;
-			checkRequiredSecondary = false;
 
 			if (poolsOnly) {
 				$('#moverDirection2').hide();
@@ -676,8 +724,8 @@ function updateScreen(cache, slow) {
 			}
 
 			if ((secondaryValue !== "0") && (secondaryValue !== primaryValue)) {
-				$('#moverDirection1 option:eq(0)').text($('#primary option:eq(' + z(0) + ')').text() + ' → ' + $('#secondary option:eq(' + z(1) + ')').text());
-				$('#moverDirection1 option:eq(1)').text($('#secondary option:eq(' + z(1) + ')').text() + ' → ' + $('#primary option:eq(' + z(0) + ')').text());
+				$('#moverDirection1 option:eq(0)').text($('#primary option:eq(' + z(0) + ')').text() + ' ⮕ ' + $('#secondary option:eq(' + z(1) + ')').text());
+				$('#moverDirection1 option:eq(1)').text($('#secondary option:eq(' + z(1) + ')').text() + ' ⮕ ' + $('#primary option:eq(' + z(0) + ')').text());
 				$('#moverDirection1').val('0').show();
 				$('#moverDirection2').hide();
 				$('#moverAction1').html("<i class='fa fa-info i'></i>" + moverAction1Text);
@@ -721,8 +769,8 @@ function updateScreen(cache, slow) {
 			$('#primary option:eq(' + z(0) + ')').prop('selected', true);
 			$('#secondary option:eq(' + z(1) + ')').prop('selected', true);
 			$('#secondary option:eq(1)').prop('disabled', poolsOnly);
-			$('#moverDirection1 option:eq(0)').text($('#primary option:eq(' + z(0) + ')').text() + ' → ' + $('#secondary option:eq(' + z(1) + ')').text());
-			$('#moverDirection1 option:eq(1)').text($('#secondary option:eq(' + z(1) + ')').text() + ' → ' + $('#primary option:eq(' + z(0) + ')').text());
+			$('#moverDirection1 option:eq(0)').text($('#primary option:eq(' + z(0) + ')').text() + ' ⮕ ' + $('#secondary option:eq(' + z(1) + ')').text());
+			$('#moverDirection1 option:eq(1)').text($('#secondary option:eq(' + z(1) + ')').text() + ' ⮕ ' + $('#primary option:eq(' + z(0) + ')').text());
 
 			for (let i = 0; i < secondaryDropdown.options.length; i++) {
 				if (secondaryDropdown.options[i].value === primaryValue || (i === 1 && poolsOnly) || secondaryDropdown.options[i].id === 'cachePoolOption2') {
@@ -739,8 +787,8 @@ function updateScreen(cache, slow) {
 			}
 
 			if ((secondaryValue !== "0") && (secondaryValue !== primaryValue)) {
-				$('#moverDirection1 option:eq(0)').text($('#primary option:eq(' + z(0) + ')').text() + ' → ' + $('#secondary option:eq(' + z(1) + ')').text());
-				$('#moverDirection1 option:eq(1)').text($('#secondary option:eq(' + z(1) + ')').text() + ' → ' + $('#primary option:eq(' + z(0) + ')').text());
+				$('#moverDirection1 option:eq(0)').text($('#primary option:eq(' + z(0) + ')').text() + ' ⮕ ' + $('#secondary option:eq(' + z(1) + ')').text());
+				$('#moverDirection1 option:eq(1)').text($('#secondary option:eq(' + z(1) + ')').text() + ' ⮕ ' + $('#primary option:eq(' + z(0) + ')').text());
 				$('#moverDirection1').val('0').show();
 				$('#moverDirection2').hide();
 				$('#moverAction1').html("<i class='fa fa-info i'></i>" + moverAction2Text);
@@ -759,9 +807,18 @@ function updateScreen(cache, slow) {
 			break;
 	}
 
+	/* If primary is "Array", remove secondary storage selection as it does not apply when primary is array. */
+	if (primaryDropdown.selectedIndex === 0) {
+		$('#secondaryStorage').hide(slow);
+		$('#moverAction').hide(slow);
+	} else {
+		$('#secondaryStorage').show(slow);
+		$('#moverAction').show(slow);
+	}
+
 	/* Check secondary dropdown index and show/hide moreSettings2 */
 	if (secondaryDropdown.selectedIndex === 1) {
-		$('#moreSettings2').show('slow');
+		$('#moreSettings2').show(slow);
 	} else {
 		$('#moreSettings2').hide(slow);
 	}
@@ -775,22 +832,6 @@ function updateCOW(pool, slow) {
 		$('#cow-setting').show(slow);
 	} else {
 		$('#cow-setting').hide(slow);
-	}
-}
-
-function enableDropdownIfExists(selector) {
-	try {
-		$(selector).dropdownchecklist('enable');
-	} catch (e) {
-		console.log(`${selector} not initialized, cannot enable.`);
-	}
-}
-
-function disableDropdownIfExists(selector) {
-	try {
-		$(selector).dropdownchecklist('disable');
-	} catch (e) {
-		console.log(`${selector} not initialized, cannot disable.`);
 	}
 }
 
@@ -907,6 +948,15 @@ function parseDiskSize(sizeStr) {
 
 /* Compose input fields. */
 function prepareEdit() {
+	/* Skip the function if readShare() filled the values */
+	if (skipPrepareEdit) {
+		/* Reset the flag. */
+		skipPrepareEdit = false;
+
+		/* Allow the form to submit. */
+		return true;
+	}
+
 	/* Declare variables at the function scope */
 	let share, reserved, pools;
 
@@ -1007,38 +1057,39 @@ function prepareEdit() {
 }
 
 function readShare() {
-	/* Declare variables at the function scope */
-	var name, data, disk, include, exclude, i, j;
+    let name, data;
 
-	name = $('select[name="readshare"]').val();
-	initDropdown(true);
+    name = $('select[name="readshare"]').val();
 
-	$.get('/webGui/include/ShareData.php', { name: name }, function(json) {
-		data = $.parseJSON(json);
-		form.shareAllocator.value = data.allocator;
-		form.shareFloor.value = data.floor;
-		form.shareSplitLevel.value = data.splitLevel;
-		form.shareInclude.value = data.include;
-		form.shareExclude.value = data.exclude;
-		form.shareUseCache.value = data.useCache;
-		form.shareCOW.value = data.cow;
+    $.get('/webGui/include/ShareData.php', { name: name }, function(json) {
+        data = $.parseJSON(json);
+        let form = document.forms['share_edit'];
 
-		for (i = 0; (disk = data.include.split(',')[i]); i++) {
-			for (j = 0; (include = form.shareInclude.options[j]); j++) {
-				if (include.value == disk) include.selected = true;
-			}
+        /* Fill in the form values */
+        form.shareAllocator.value = data.allocator;
+        form.shareFloor.value = data.floor;
+        form.shareSplitLevel.value = data.splitLevel;
+        form.shareInclude.value = data.include;
+        form.shareExclude.value = data.exclude;
+        form.shareUseCache.value = data.useCache;
+        form.shareCachePool2.value = data.cachePool2;
+        form.shareCOW.value = data.cow;
+
+		/* Populate the primary storage field (shareCachePool) */
+		let primaryField = document.getElementById('primary');
+		if (primaryField) {
+ 			/* Set to retrieved value or default. */
+ 			primaryField.value = data.cachePool || '';
 		}
 
-		for (i = 0; (disk = data.exclude.split(',')[i]); i++) {
-			for (j = 0; (exclude = form.shareExclude.options[j]); j++) {
-				if (exclude.value == disk) exclude.selected = true;
-			}
-		}
+        /* Set flag to skip prepareEdit */
+        skipPrepareEdit = true;
 
-		initDropdown(false);
-	});
-
-	$(form).find('select').trigger('change');
+        /* Enable and trigger the submit button */
+        const submitButton = document.getElementById('cmdEditShare');
+        submitButton.disabled = false;
+        submitButton.click();
+    });
 }
 
 function writeShare(data, n, i) {
@@ -1070,6 +1121,8 @@ function writeShare(data, n, i) {
 				newData[i]['shareInclude'] = '<?=addslashes(htmlspecialchars($share['include']))?>';
 				newData[i]['shareExclude'] = '<?=addslashes(htmlspecialchars($share['exclude']))?>';
 				newData[i]['shareUseCache'] = '<?=addslashes(htmlspecialchars($share['useCache']))?>';
+				newData[i]['shareCachePool'] = '<?=addslashes(htmlspecialchars($share['cachePool']))?>';
+				newData[i]['shareCachePool2'] = '<?=addslashes(htmlspecialchars($share['cachePool2']))?>';
 				newData[i]['cmdEditShare'] = 'Apply';
 				i++;
 			}
@@ -1128,7 +1181,7 @@ document.addEventListener('DOMContentLoaded', function() {
 
 		let cachePoolOption = document.getElementById('cachePoolOption');
 		let messageSpan = document.getElementById('cachePoolMessage');
-		messageSpan.textContent = `${_('Warning: Configured Pool')} '${cachePoolCapitalized}' ${_('is missing')}.`;
+		messageSpan.textContent = `${_('Warning: Configured Pool')} '${cachePoolCapitalized || _('Array')}' ${_('is missing')}.`;
 		messageSpan.style.display = 'inline';
 		cachePoolOption.selected = true;
 
@@ -1317,7 +1370,7 @@ $(function() {
 	<?endif;?>
 	initDropdown(true);
 	<?if ($tabbed):?>
-		$('#tab1').bind({
+		$('#tab1').on({
 			click: function() {
 				initDropdown(true);
 			}

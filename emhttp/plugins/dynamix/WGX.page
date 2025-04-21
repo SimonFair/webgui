@@ -3,8 +3,8 @@ Title="Tunnel wgX"
 Tag="icon-vpn"
 ---
 <?PHP
-/* Copyright 2005-2023, Lime Technology
- * Copyright 2012-2023, Bergware International.
+/* Copyright 2005-2025, Lime Technology
+ * Copyright 2012-2025, Bergware International.
  *
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License version 2,
@@ -283,7 +283,7 @@ _(DNS servers)_:
 
 <div id="peers-list-wgX" style="display:none"></div>
 <?foreach ($peer_wgX as $i):?>
-<div markdown="1" id="index-wgX-<?=$i?>" class="shade-<?=$display['theme']?>">
+<div markdown="1" id="index-wgX-<?=$i?>" class="shade">
 _(Peer name)_:
 : <span class="input"><input type="text" name="Name:<?=$i?>" class="wide" maxlength="99" value="<?=_var($wgX,"Name:$i")?>" onchange="quickValidate(this);" pattern="<?=$validname?>" title="_(Use only letters A-Z, digits or space,dash,underscore)_" placeholder="(_(optional)_)"></span>
   <input type="button" class="form" value="_(Delete Peer)_" onclick="delPeer($(document.wgX),'#index-wgX-<?=$i?>')">
@@ -359,7 +359,7 @@ _(Peer allowed IPs)_:
 :wg_peer_allowed_ips_help:
 
 _(Peer DNS server)_:
-: <span class="input"><input type="text" name="DNS:<?=$i?>" class="subnet" maxlength="40" value="<?=_var($wgX,"DNS:$i")?>" onchange="quickValidate(this);" pattern="<?=$validDNSServerList?>" title="_(Comma separated list of IPv4 and IPv6 IP addresses)_"<?=(int)_var($wgX,"TYPE:$i",0)!=6?'placeholder="(_(optional)_)"':'placeholder="(_(mandatory)_)" required'?>></span>
+: <span class="input"><input type="text" name="DNS:<?=$i?>" class="subnet" maxlength="60" value="<?=_var($wgX,"DNS:$i")?>" onchange="quickValidate(this);" pattern="<?=$validDNSServerList?>" title="_(Comma separated list of IPv4 and IPv6 IP addresses)_"<?=(int)_var($wgX,"TYPE:$i",0)!=6?'placeholder="(_(optional)_)"':'placeholder="(_(mandatory)_)" required'?>></span>
 
 :wg_peer_dns_server_help:
 
@@ -378,7 +378,7 @@ _(Persistent keepalive)_:
 </form>
 
 <script markdown="1" type="text/html" id="peer-template-wgX">
-<div markdown="1" id="index-wgX-INDEX" class="shade-<?=$display['theme']?>">
+<div markdown="1" id="index-wgX-INDEX" class="shade">
 _(Peer name)_:
 : <span class="input"><input type="text" name="Name:INDEX" class="wide" maxlength="99" value="" onchange="quickValidate(this);" pattern="<?=$validname?>" title="_(Use only letters A-Z, digits or space,dash,underscore)_" placeholder="(_(optional)_)"></span>
   <span class="pin"><i class="fa fa-fw fa-eye eyeINDEX key-off" title="_(Show Peer Config)_"></i>
@@ -451,7 +451,7 @@ _(Peer allowed IPs)_:
 :wg_peer_allowed_ips_help:
 
 _(Peer DNS server)_:
-: <span class="input"><input type="text" name="DNS:INDEX" class="subnet" maxlength="40" value="" onchange="quickValidate(this);" pattern="<?=$validDNSServerList?>" title="_(Comma separated list of IPv4 and IPv6 IP addresses)_" placeholder="(_(optional)_)"></span>
+: <span class="input"><input type="text" name="DNS:INDEX" class="subnet" maxlength="60" value="" onchange="quickValidate(this);" pattern="<?=$validDNSServerList?>" title="_(Comma separated list of IPv4 and IPv6 IP addresses)_" placeholder="(_(optional)_)"></span>
 
 :wg_peer_dns_server_help:
 

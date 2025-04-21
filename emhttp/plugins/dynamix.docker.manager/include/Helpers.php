@@ -1,6 +1,6 @@
 <?PHP
-/* Copyright 2005-2023, Lime Technology
- * Copyright 2012-2023, Bergware International.
+/* Copyright 2005-2025, Lime Technology
+ * Copyright 2012-2025, Bergware International.
  * Copyright 2014-2021, Guilherme Jardim, Eric Schultz, Jon Panozzo.
  *
  * This program is free software; you can redistribute it and/or
@@ -117,6 +117,7 @@ function postToXML($post, $setOwnership=false) {
     $xml->TailscaleWebUI               = xml_encode(generateTSwebui($post['TSwebui'], $post['TSserve'], $post['contWebUI']));
     if (isset($post['TSserve']) && strtolower($post['TSserve']) !== 'no') {
       $xml->TailscaleServePort           = xml_encode($post['TSserveport']);
+      $xml->TailscaleServeTarget         = xml_encode($post['TSservetarget']);
       $xml->TailscaleServeLocalPath      = xml_encode($post['TSservelocalpath']);
       $xml->TailscaleServeProtocol       = xml_encode($post['TSserveprotocol']);
       $xml->TailscaleServeProtocolPort   = xml_encode($post['TSserveprotocolport']);
@@ -124,13 +125,13 @@ function postToXML($post, $setOwnership=false) {
     }
     $xml->TailscaleDParams             = xml_encode($post['TSdaemonparams']);
     $xml->TailscaleParams              = xml_encode($post['TSextraparams']);
-    $xml->TailscaleStateDir            = xml_encode($post['TSstatedir']);
     $xml->TailscaleRoutes              = xml_encode($post['TSroutes']);;
     $xml->TailscaleAcceptRoutes        = xml_encode($post['TSacceptroutes']);;
     if (isset($post['TStroubleshooting']) && strtolower($post['TStroubleshooting']) === 'on') {
       $xml->TailscaleTroubleshooting     = 'true';
     }
   }
+  $xml->TailscaleStateDir            = xml_encode($post['TSstatedir']);
   $dom = new DOMDocument('1.0');
   $dom->preserveWhiteSpace = false;
   $dom->formatOutput = true;
@@ -171,6 +172,7 @@ function xmlToVar($xml) {
   $out['TailscaleUserspaceNetworking'] = xml_decode($xml->TailscaleUserspaceNetworking ?? '');
   $out['TailscaleServe']               = xml_decode($xml->TailscaleServe ?? '');
   $out['TailscaleServePort']           = xml_decode($xml->TailscaleServePort ?? '');
+  $out['TailscaleServeTarget']         = xml_decode($xml->TailscaleServeTarget ?? '');
   $out['TailscaleServeLocalPath']      = xml_decode($xml->TailscaleServeLocalPath ?? '');
   $out['TailscaleServeProtocol']       = xml_decode($xml->TailscaleServeProtocol ?? '');
   $out['TailscaleServeProtocolPort']   = xml_decode($xml->TailscaleServeProtocolPort ?? '');
@@ -307,11 +309,9 @@ function xmlSecurity(&$template) {
       xmlSecurity($element);
     } else {
       if (is_string($element)) {
-        $tempElement = htmlspecialchars_decode($element);
-        $tempElement = str_replace("[","<",$tempElement);
-        $tempElement = str_replace("]",">",$tempElement);
-        if (preg_match('#<script(.*?)>(.*?)</script>#is',$tempElement) || preg_match('#<iframe(.*?)>(.*?)</iframe>#is',$tempElement) || (stripos($tempElement,"<link") !== false) ) {
-          $element = "REMOVED";
+        $tempElement = htmlspecialchars_decode($element??"");
+        if ( trim(strip_tags($tempElement)) !== trim($tempElement) ) {
+          $element = str_replace(["<",">"],["",""],$tempElement);
         }
       }
     }
@@ -366,6 +366,7 @@ function xmlToCommand($xml, $create_paths=false) {
   $TS_state_dir = '';
   $TS_serve_funnel = '';
   $TS_serve_port = '';
+  $TS_serve_target = '';
   $TS_serve_local_path = '';
   $TS_serve_protocol = '';
   $TS_serve_protocol_port = '';
@@ -399,6 +400,7 @@ function xmlToCommand($xml, $create_paths=false) {
     }
     $TS_serve_funnel = ($xml['TailscaleServe'] == 'funnel') ? '-e TAILSCALE_FUNNEL=true' : '';
     $TS_serve_port = !empty($xml['TailscaleServePort']) ? '-e TAILSCALE_SERVE_PORT=' . escapeshellarg($xml['TailscaleServePort']) : '';
+    $TS_serve_target = !empty($xml['TailscaleServeTarget']) ? '-e TAILSCALE_SERVE_TARGET=' . escapeshellarg($xml['TailscaleServeTarget']) : '';
     $TS_serve_local_path = !empty($xml['TailscaleServeLocalPath']) ? '-e TAILSCALE_SERVE_LOCALPATH=' . escapeshellarg($xml['TailscaleServeLocalPath']) : '';
     $TS_serve_protocol = !empty($xml['TailscaleServeProtocol']) ? '-e TAILSCALE_SERVE_PROTOCOL=' . escapeshellarg($xml['TailscaleServeProtocol']) : '';
     $TS_serve_protocol_port = !empty($xml['TailscaleServeProtocolPort']) ? '-e TAILSCALE_SERVE_PROTOCOL_PORT=' . escapeshellarg($xml['TailscaleServeProtocolPort']) : '';
@@ -408,8 +410,14 @@ function xmlToCommand($xml, $create_paths=false) {
     $TS_routes = !empty($xml['TailscaleRoutes']) ? '-e TAILSCALE_ADVERTISE_ROUTES=' . escapeshellarg($xml['TailscaleRoutes']) : '';
     $TS_accept_routes = !empty($xml['TailscaleAcceptRoutes']) && $xml['TailscaleAcceptRoutes'] === 'true' ? '-e TAILSCALE_ACCEPT_ROUTES=true' : '';
     if (!empty($xml['PostArgs'])) {
-      $TS_postargs = '-e ORG_POSTARGS=' . escapeshellarg($xml['PostArgs']);
-      $xml['PostArgs'] = '';
+      $split_PostArgs = strpos($xml['PostArgs'], ';');
+      if ($split_PostArgs !== false) {
+        $TS_postargs = !empty(substr($xml['PostArgs'], 0, $split_PostArgs)) ? '-e ORG_POSTARGS=' . escapeshellarg(substr($xml['PostArgs'], 0, $split_PostArgs)) : '';
+        $xml['PostArgs'] = ';' . substr($xml['PostArgs'], $split_PostArgs + 1);
+      } else {
+        $TS_postargs = '-e ORG_POSTARGS=' . escapeshellarg($xml['PostArgs']);
+        $xml['PostArgs'] = '';
+      }
     }
   }
 
@@ -470,8 +478,8 @@ function xmlToCommand($xml, $create_paths=false) {
     $pid_limit = "";
   }
 
-  $cmd = sprintf($docroot.'/plugins/dynamix.docker.manager/scripts/docker create %s %s %s %s %s %s %s %s %s %s %s %s %s %s %s %s %s %s %s %s %s %s %s %s %s %s %s %s %s %s %s %s %s %s %s %s %s %s %s',
-         $cmdName, $TS_entrypoint, $cmdNetwork, $cmdMyIP, $cmdCPUset, $pid_limit, $cmdPrivileged, implode(' -e ', $Variables), $TS_hostname, $TS_exitnode, $TS_exitnode_ip, $TS_lan_access, $TS_routes, $TS_accept_routes, $TS_ssh, $TS_userspace_networking, $TS_serve_funnel, $TS_serve_port, $TS_serve_local_path, $TS_serve_protocol, $TS_serve_protocol_port, $TS_serve_path, $TS_daemon_params, $TS_extra_params, $TS_state_dir, $TS_troubleshooting, $TS_postargs, implode(' -l ', $Labels), $TS_web_ui, $TS_hostname_label, implode(' -p ', $Ports), implode(' -v ', $Volumes), $TS_hook, $TS_cap, $TS_tundev, implode(' --device=', $Devices), $xml['ExtraParams'], escapeshellarg($xml['Repository']), $xml['PostArgs']);
+  $cmd = sprintf($docroot.'/plugins/dynamix.docker.manager/scripts/docker create %s %s %s %s %s %s %s %s %s %s %s %s %s %s %s %s %s %s %s %s %s %s %s %s %s %s %s %s %s %s %s %s %s %s %s %s %s %s %s %s',
+         $cmdName, $TS_entrypoint, $cmdNetwork, $cmdMyIP, $cmdCPUset, $pid_limit, $cmdPrivileged, implode(' -e ', $Variables), $TS_hostname, $TS_exitnode, $TS_exitnode_ip, $TS_lan_access, $TS_routes, $TS_accept_routes, $TS_ssh, $TS_userspace_networking, $TS_serve_funnel, $TS_serve_port, $TS_serve_target, $TS_serve_local_path, $TS_serve_protocol, $TS_serve_protocol_port, $TS_serve_path, $TS_daemon_params, $TS_extra_params, $TS_state_dir, $TS_troubleshooting, $TS_postargs, implode(' -l ', $Labels), $TS_web_ui, $TS_hostname_label, implode(' -p ', $Ports), implode(' -v ', $Volumes), $TS_hook, $TS_cap, $TS_tundev, implode(' --device=', $Devices), $xml['ExtraParams'], escapeshellarg($xml['Repository']), $xml['PostArgs']);
   return [preg_replace('/\s\s+/', ' ', $cmd), $xml['Name'], $xml['Repository']];
 }
 function stopContainer($name, $t=false, $echo=true) {
@@ -657,8 +665,8 @@ function setXmlVal(&$xml, $value, $el, $attr=null, $pos=0) {
 }
 
 function getAllocations() {
-  global $DockerClient, $host;
-
+  global $DockerClient;
+  $host = DockerUtil::host();
   $ports = [];
   foreach ($DockerClient->getDockerContainers() as $ct) {
     $list = $port = [];

@@ -1,6 +1,6 @@
 <?PHP
-/* Copyright 2005-2023, Lime Technology
- * Copyright 2012-2023, Bergware International.
+/* Copyright 2005-2025, Lime Technology
+ * Copyright 2012-2025, Bergware International.
  * Copyright 2014-2021, Guilherme Jardim, Eric Schultz, Jon Panozzo.
  *
  * This program is free software; you can redistribute it and/or
@@ -13,8 +13,8 @@
 ?>
 <?
 $docroot ??= ($_SERVER['DOCUMENT_ROOT'] ?: '/usr/local/emhttp');
-require_once "$docroot/plugins/dynamix.docker.manager/include/Helpers.php";
 require_once "$docroot/webGui/include/Wrappers.php";
+require_once "$docroot/plugins/dynamix.docker.manager/include/Helpers.php";
 
 // add translations
 if (_var($_SERVER,'REQUEST_URI')!='docker' && substr(_var($_SERVER,'REQUEST_URI'),0,7)!='/Docker') {
@@ -35,20 +35,16 @@ $dockerManPaths = [
 	'webui-info'     => "$docroot/state/plugins/dynamix.docker.manager/docker.json"
 ];
 
-// load network variables if needed.
-$ethX = 'eth0';
-if (!isset($$ethX)) extract(parse_ini_file("$docroot/state/network.ini",true));
-$host = ipaddr($ethX);
-
 // get network drivers
 $driver = DockerUtil::driver();
 
-// determine active port name
-$port = file_exists('/sys/class/net/br0') ? 'BR0' : (file_exists('/sys/class/net/bond0') ? 'BOND0' : 'ETH0');
-
 // Docker configuration file - guaranteed to exist
 $docker_cfgfile = '/boot/config/docker.cfg';
+$mgmt_port = ['br0','bond0','eth0'];
+
 if (file_exists($docker_cfgfile)) {
+	$port = DockerUtil::port();
+	$port = strtoupper((in_array($port,$mgmt_port) && lan_port($port,true)==0) ? 'wlan0' : $port);
 	exec("grep -Pom2 '_SUBNET_|_{$port}(_[0-9]+)?=' $docker_cfgfile",$cfg);
 	if (isset($cfg[0]) && $cfg[0]=='_SUBNET_' && empty($cfg[1])) {
 		# interface has changed, update configuration
@@ -56,7 +52,7 @@ if (file_exists($docker_cfgfile)) {
 	}
 }
 
-$defaults = (array)@parse_ini_file("$docroot/plugins/dynamix.docker.manager/default.cfg");
+$defaults  = (array)@parse_ini_file("$docroot/plugins/dynamix.docker.manager/default.cfg");
 $dockercfg = array_replace_recursive($defaults, (array)@parse_ini_file($docker_cfgfile));
 
 function var_split($item, $i=0) {
@@ -277,9 +273,8 @@ class DockerTemplates {
 	}
 
 	private function getControlURL(&$ct, $myIP, $WebUI) {
-		global $host;
 		$port = &$ct['Ports'][0];
-		$myIP = $myIP ?: $this->getTemplateValue($ct['Image'],'MyIP') ?: (_var($ct,'NetworkMode')=='host'||_var($port,'NAT') ? $host : (_var($port,'IP') ?: DockerUtil::myIP($ct['Name'])));
+		$myIP = $myIP ?: $this->getTemplateValue($ct['Image'],'MyIP') ?: (_var($ct,'NetworkMode')=='host'||_var($port,'NAT') ? DockerUtil::host() : (_var($port,'IP') ?: DockerUtil::myIP($ct['Name'])));
 		// Get the WebUI address from the templates as a fallback
 		$WebUI = preg_replace("%\[IP\]%", $myIP, $WebUI ?? $this->getTemplateValue($ct['Image'], 'WebUI'));
 		if (preg_match("%\[PORT:(\d+)\]%", $WebUI, $matches)) {
@@ -303,9 +298,10 @@ class DockerTemplates {
 	}
 
 	public function getAllInfo($reload=false,$com=true,$communityApplications=false) {
-		global $driver, $dockerManPaths, $host;
+		global $driver, $dockerManPaths;
 		$DockerClient = new DockerClient();
 		$DockerUpdate = new DockerUpdate();
+		$host = DockerUtil::host();
 		//$DockerUpdate->verbose = $this->verbose;
 		$info = DockerUtil::loadJSON($dockerManPaths['webui-info']);
 		$autoStart = array_map('var_split', @file($dockerManPaths['autostart-file'],FILE_IGNORE_NEW_LINES) ?: []);
@@ -355,6 +351,8 @@ class DockerTemplates {
 						// Check if serve or funnel are enabled by checking for [hostname] and replace string with TS_DNSName
 						if (strpos($ct['TSUrl'], '[hostname]') !== false && isset($TS_DNSName)) {
 							$tmp['TSurl'] = str_replace("[hostname][magicdns]", rtrim($TS_DNSName, '.'), $ct['TSUrl']);
+							$tmp['TSurl'] = preg_replace('/\[IP\]/', rtrim($TS_DNSName, '.'), $tmp['TSurl']);
+							$tmp['TSurl'] = preg_replace('/\[PORT:(\d{1,5})\]/', '443', $tmp['TSurl']);
 						// Check if serve is disabled, construct url with port, path and query if present and replace [noserve] with url
 						} elseif (strpos($ct['TSUrl'], '[noserve]') !== false && isset($TS_container['TailscaleIPs'])) {
 							$ipv4 = '';
@@ -369,6 +367,8 @@ class DockerTemplates {
 								$webui_port = (preg_match('/\[PORT:(\d+)\]/', $webui, $matches)) ? ':' . $matches[1] : '';
 								$webui_path = $webui_url['path'] ?? '';
 								$webui_query = isset($webui_url['query']) ? '?' . $webui_url['query'] : '';
+								$webui_query = preg_replace('/\[IP\]/', $ipv4, $webui_query);
+								$webui_query = preg_replace('/\[PORT:(\d{1,5})\]/', ltrim($webui_port, ':'), $webui_query);
 								$tmp['TSurl'] = 'http://' . $ipv4 . $webui_port . $webui_path . $webui_query;
 							}
 						// Check if TailscaleWebUI in the xml is custom and display instead
@@ -385,16 +385,17 @@ class DockerTemplates {
 			$tmp['Project'] = $tmp['Project'] ?? $this->getTemplateValue($image, 'Project');
 			$tmp['DonateLink'] = $tmp['DonateLink'] ?? $this->getTemplateValue($image, 'DonateLink');
 			$tmp['ReadMe'] = $tmp['ReadMe'] ?? $this->getTemplateValue($image, 'ReadMe');
-			if (empty($tmp['updated']) || $reload) {
-				if ($reload) $DockerUpdate->reloadUpdateStatus($image);
-				$tmp['updated'] = var_export($DockerUpdate->getUpdateStatus($image),true);
-			}
 			if (!$com) $tmp['updated'] = 'undef';
-			if ($ct['Manager'] !== 'dockerman')
+			if ($ct['Manager'] !== 'dockerman') {
 				$tmp['template'] = null;
-			else if (empty($tmp['template']) || $reload) {
+				$tmp['updated'] = null;
+			} else if (empty($tmp['template']) || $reload) {
 				$tmp['template'] = $this->getUserTemplate($name);
 				if ($reload) $DockerUpdate->updateUserTemplate($name);
+  				if (empty($tmp['updated']) || $reload) {
+					if ($reload) $DockerUpdate->reloadUpdateStatus($image);
+					$tmp['updated'] = var_export($DockerUpdate->getUpdateStatus($image),true);
+				}
 			}
 			//$this->debug("\n$name");
 			//foreach ($tmp as $c => $d) $this->debug(sprintf('   %-10s: %s', $c, $d));
@@ -953,7 +954,8 @@ class DockerClient {
 	}
 
 	public function getDockerContainers() {
-		global $driver, $host;
+		global $driver;
+		$host = DockerUtil::host();
 		// Return cached values
 		if (is_array($this::$containersCache)) return $this::$containersCache;
 		$this::$containersCache = [];
@@ -1080,15 +1082,12 @@ class DockerClient {
 ##################################
 
 class DockerUtil {
-	public static function ensureImageTag($image): string
-	{
+	public static function ensureImageTag($image): string {
 		extract(static::parseImageTag($image));
-
 		return "$strRepo:$strTag";
 	}
 
-	public static function parseImageTag($image): array
-	{
+	public static function parseImageTag($image): array {
 		if (strpos($image, 'sha256:') === 0) {
 			// sha256 was provided instead of actual repo name so truncate it for display:
 			$strRepo = substr($image, 7, 12);
@@ -1104,21 +1103,17 @@ class DockerUtil {
 				$strRepo = $image;
 			}
 		}
-
 		// Add :latest tag to image if it's absent
 		if (empty($strTag)) $strTag = 'latest';
-
 		return array_map('trim', ['strRepo' => $strRepo, 'strTag' => $strTag]);
 	}
 
-	private static function splitImage($image): ?array
-	{
+	private static function splitImage($image): ?array {
 		if (false === preg_match('@^(.+/)*([^/:]+)(:[^:/]*)*$@', $image, $newSections) || count($newSections) < 3) {
 			return null;
 		} else {
 			[, $strRepo, $image, $strTag] = array_merge($newSections, ['']);
 			$strTag = str_replace(':','',$strTag??'');
-
 			return [
 				'strRepo' => $strRepo . $image,
 				'strTag' => $strTag,
@@ -1154,7 +1149,7 @@ class DockerUtil {
 	}
 
 	public static function custom() {
-		return static::docker("network ls --filter driver='bridge' --filter driver='macvlan' --filter driver='ipvlan' --format='{{.Name}}' 2>/dev/null|grep -v '^bridge$'",true);
+		return static::docker("network ls --filter driver='bridge' --filter driver='macvlan' --filter driver='ipvlan' --format='{{.Name}}' 2>/dev/null | grep -v '^bridge$'",true);
 	}
 
 	public static function network($custom) {
@@ -1164,11 +1159,27 @@ class DockerUtil {
 	}
 
 	public static function cpus() {
-		exec('cat /sys/devices/system/cpu/*/topology/thread_siblings_list|sort -nu', $cpus);
+		exec('cat /sys/devices/system/cpu/*/topology/thread_siblings_list | sort -nu', $cpus);
 		return $cpus;
 	}
+
 	public static function ctMap($ct, $type='Name') {
 		return static::docker("inspect --format='{{.$type}}' $ct");
+	}
+
+	public static function port() {
+		if (lan_port('br0')) return 'br0';
+		if (lan_port('bond0')) return 'bond0';
+		if (lan_port('eth0')) return 'eth0';
+		if (lan_port('wlan0')) return 'wlan0';
+		return '';
+	}
+
+	public static function host() {
+		$port = static::port();
+		if (!$port) return '';
+		$port = lan_port($port,true)==0 && lan_port('wlan0') ? 'wlan0' : $port;
+		return exec("ip -br -4 addr show $port scope global | sed -r 's/\/[0-9]+//g' | awk '{print $3;exit}'");
 	}
 }
 ?>

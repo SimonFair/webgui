@@ -37,7 +37,7 @@ if (isset($_POST['scan'])) {
 		/* Iterate over each item in the directory and its subdirectories */
 		foreach ($iterator as $fileinfo) {
 			/* Check if the current item is a file and not a .DS_Store file */
-			if ($fileinfo->isFile() && !preg_match('/\.DS_Store$/i', $fileinfo->getFilename())) {
+			if ($fileinfo->isFile() && $fileinfo->getFilename() !== '.DS_Store') {
 				$hasFiles = true;
 				break;
 			}
@@ -70,7 +70,7 @@ function removeDSStoreFilesAndEmptyDirs($dir) {
 	);
 
 	foreach ($iterator as $file) {
-		if ($file->isFile() && preg_match('/\.DS_Store$/i', $file->getFilename())) {
+		if ($file->isFile() && $file->getFilename() === '.DS_Store') {
 			unlink($file->getRealPath());
 		}
 	}
@@ -87,6 +87,7 @@ if (isset($_POST['cleanup'])) {
   $n = 0;
   // active shares
   $shares = array_map('strtolower',array_keys(parse_ini_file('state/shares.ini',true)));
+
   // stored shares
   foreach (glob("/boot/config/shares/*.cfg",GLOB_NOSORT) as $name) {
     if (!in_array(strtolower(basename($name,'.cfg')),$shares)) {
@@ -114,7 +115,7 @@ $pools_check = pools_filter(cache_filter($disks));
 $pools = implode(',', $pools_check);
 
 // exit when no mountable array disks
-$nodisks = "<tr><td class='empty' colspan='7'><strong>"._('There are no mountable array or pool disks - cannot add shares').".</strong></td></tr>";
+$nodisks = "<tr><td class='empty' colspan='7'><strong>"._('There are no mounted array or pool disks - cannot add shares').".</strong></td></tr>";
 if (!checkDisks($disks)) die($nodisks);
 
 // exit when no shares
@@ -127,18 +128,13 @@ extract(parse_plugin_cfg('dynamix',true));
 // Natural sorting of share names
 uksort($shares,'strnatcasecmp');
 
-/* Function to filter out unwanted disks, check if any valid disks exist, and ignore disks with a blank device. */
-function checkDisks($disks) {
-	global $pools;
-
+/* Function to test if any Mouned volumes exist. */
+function checkDisks(&$disks) {
 	$rc		= false;
 
 	foreach ($disks as $disk) {
-		/* Check the disk type, fsStatus, and ensure the device is not blank. */
-		if (!in_array($disk['name'], ['flash', 'parity', 'parity2']) && strpos($disk['fsStatus'], 'Unmountable') === false && !empty($disk['device'])) {
-			/* A valid disk with a non-blank device is found. */
+		if ($disk['name']!=='flash' && _var($disk,'fsStatus',"")==='Mounted') {
 			$rc	= true;
-
 			break;
 		}
 	}
@@ -186,7 +182,17 @@ define('LUKS_STATUS_UNENCRYPTED', 2);
 
 // Build table
 $row = 0;
+
+/* Get the first pool if needed. */
+$firstPool = $pools_check[0] ?? "";
 foreach ($shares as $name => $share) {
+	/* Correct a situation in previous Unraid versions where an array only share has a useCache defined. */
+	if ((!$poolsOnly) && ($share['useCache'] == "no")) {
+		$share['cachePool'] = "";
+	} else if (($poolsOnly) && (!$share['cachePool'])) {
+		$share['cachePool']	= $firstPool;
+	}
+
 	/* Is cachePool2 defined? If it is we need to show the cache pool 2 device name instead of 'Array'. */
 	if ($share['cachePool2']) {
 		$array		= compress(my_disk($share['cachePool2'],$display['raw']));
@@ -260,10 +266,10 @@ foreach ($shares as $name => $share) {
 		}
 	}
 
-	echo "<tr><td><a class='view' href=\"/$path/Browse?dir=/mnt/user/", rawurlencode($name), "\"><i class=\"icon-u-tab\" title=\"", _('Browse'), " /mnt/user/" . rawurlencode($name), "\"></i></a>";
+	echo "<tr><td><a class='view' href=\"/$path/Browse?dir=/mnt/user/", htmlspecialchars($name), "\"><i class=\"icon-u-tab\" title=\"", _('Browse'), " /mnt/user/" . htmlspecialchars($name), "\"></i></a>";
 	echo "<a class='info nohand' onclick='return false'><i class='fa fa-$orb orb $color-orb'></i><span style='left:18px'>$help</span></a>$luks<a href=\"/$path/Share?name=";
 	echo rawurlencode($name), "\" onclick=\"$.cookie('one','tab1')\">$name</a></td>";
-	echo "<td>{$share['comment']}</td>";
+        echo "<td>", htmlspecialchars(_var($share,'comment')), "</td>";
 	echo "<td>", user_share_settings($var['shareSMBEnabled'], $sec[$name]), "</td>";
 	echo "<td>", user_share_settings($var['shareNFSEnabled'], $sec_nfs[$name]), "</td>";
 
@@ -276,10 +282,10 @@ foreach ($shares as $name => $share) {
 				$cache = "<a class='hand info none' onclick='return false'>".$indicator.$exclusive.$array."<span>".sprintf(_('Primary storage %s'), $array)."</span></a>";
 				break;
 			case 'yes':
-				$cache = "<a class='hand info none' onclick='return false'><i class='fa fa-bullseye fa-fw'></i>".compress(my_disk($share['cachePool'], $display['raw']))." <i class='fa fa-long-arrow-right fa-fw'></i>".$indicator.$array."<span>"._('Primary storage to Secondary storage')."</span></a>";
+				$cache = "<a class='hand info none' onclick='return false'><i class='fa fa-bullseye fa-fw'></i>".compress(my_disk($share['cachePool'], $display['raw']))." <i class='fa fa-arrow-right fa-fw'></i>".$indicator.$array."<span>"._('Primary storage to Secondary storage')."</span></a>";
 				break;
 			case 'prefer':
-				$cache = "<a class='hand info none' onclick='return false'><i class='fa fa-bullseye fa-fw'></i>".compress(my_disk($share['cachePool'], $display['raw']))." <i class='fa fa-long-arrow-left fa-fw'></i>".$indicator.$array."<span>"._('Secondary storage to Primary storage')."</span></a>";
+				$cache = "<a class='hand info none' onclick='return false'><i class='fa fa-bullseye fa-fw'></i>".compress(my_disk($share['cachePool'], $display['raw']))." <i class='fa fa-arrow-left fa-fw'></i>".$indicator.$array."<span>"._('Secondary storage to Primary storage')."</span></a>";
 				break;
 			case 'only':
 				$cache = "<a class='hand info none' onclick='return false'><i class='fa fa-bullseye fa-fw'></i>$exclusive".my_disk($share['cachePool'], $display['raw'])."<span>".sprintf(_('Primary storage %s'), $share['cachePool']).($exclusive ? ", "._('Exclusive access') : "")."</span></a>";

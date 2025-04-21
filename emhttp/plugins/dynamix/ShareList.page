@@ -16,23 +16,16 @@ Cond="_var($var,'fsState')!='Stopped' && _var($var,'shareUser')=='e'"
  */
 ?>
 <?
-/* Function to filter out unwanted disks, check if any valid disks exist, and ignore disks with a blank device. */
-function checkDisks($disks) {
-	global $pools;
-
-	$rc		= false;
-
-	foreach ($disks as $disk) {
-		/* Check the disk type, fsStatus, and ensure the device is not blank. */
-		if (!in_array($disk['name'], ['flash', 'parity', 'parity2']) && strpos($disk['fsStatus'], 'Unmountable') === false && !empty($disk['device'])) {
-			/* A valid disk with a non-blank device is found. */
-			$rc	= true;
-
-			break;
-		}
-	}
-
-	return $rc;
+/* Function to test if any Mouned volumes exist. */
+function checkDisks(&$disks) {
+    $rc = false;
+    foreach ($disks as $disk) {
+        if ($disk['name']!=='flash' && _var($disk,'fsStatus',"")==='Mounted') {
+            $rc = true;
+            break;
+        }
+    }
+    return $rc;
 }
 
 /* Are there any array disks? */
