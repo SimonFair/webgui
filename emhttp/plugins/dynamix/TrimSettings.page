@@ -123,5 +123,9 @@ _(Time of the day)_:
 :end
 
 &nbsp;
-: <input type="submit" name="#apply" value="_(Apply)_"><input type="button" value="_(Done)_" onclick="done()"><input type="button" value="_(Trim Now)_" onclick="trimNow()">
+: <span class="inline-block">
+    <input type="submit" name="#apply" value="_(Apply)_">
+    <input type="button" value="_(Done)_" onclick="done()">
+    <input type="button" value="_(Trim Now)_" onclick="trimNow()">
+  </span>
 </form>

@@ -187,7 +187,7 @@ function decrypt_data($data) {
 
     /* Ensure the decrypted data is UTF-8 encoded. */
     if (!mb_check_encoding($decrypted, 'UTF-8')) {
-        unassigned_log("Warning: Data is not UTF-8 encoded");
+        outgoingproxy_log("Warning: Data is not UTF-8 encoded");
         $decrypted = "";
     }
 

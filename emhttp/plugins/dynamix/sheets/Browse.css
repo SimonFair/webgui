@@ -10,6 +10,7 @@
 .Theme--azure:root,
 .Theme--white:root {
     --browse-table-tbody-tr-hover-td-bg-color: var(--black-opacity-10);
+    --browse-icon-color: var(--browse-text-color);
 }
 
 div#ace_settingsmenu,
@@ -103,11 +104,18 @@ div#buttons {
 div.autoheight {
     width: 100%;
     overflow-y: auto;
-    margin-top: -30px;
 }
 
 table.tablesorter.indexer tbody tr:hover td {
     background-color: var(--browse-table-tbody-tr-hover-td-bg-color);
+}
+
+.ui-dialog-content dd {
+    position: relative;
+
+    .fileTree {
+        top: 4rem;
+    }
 }
 
 .Theme--black {
@@ -119,11 +127,5 @@ table.tablesorter.indexer tbody tr:hover td {
     }
     tr.ace_optionsMenuEntry td input[type="number"] {
         color: var(--browse-text-color);
-    }
-}
-
-.Theme--sidebar {
-    div.autoheight {
-        margin-top: 0;
     }
 }

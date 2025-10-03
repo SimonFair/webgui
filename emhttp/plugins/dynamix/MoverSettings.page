@@ -27,6 +27,9 @@ $cron = explode(' ',$var['shareMoverSchedule']);
 $move = $cron[2]!='*' ? 3 : ($cron[4]!='*' ? 2 : (substr($cron[1],0,1)!='*' ? 1 : 0));
 $mode = ['Hourly','Daily','Weekly','Monthly'];
 $days = ['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'];
+
+$showMoverButton = $setup && $pool_devices;
+$moverRunning = file_exists('/var/run/mover.pid');
 ?>
 <script>
 <? if ($setup == true):?>
@@ -119,14 +122,12 @@ _(Mover logging)_:
 
 <?endif;?>
 &nbsp;
-: <input type="submit" name="changeMover" value="_(Apply)_" disabled><input type="button" value="_(Done)_" onclick="done()">
-<?if ($setup):?>
-<?if ($pool_devices):?>
-<?if (file_exists('/var/run/mover.pid')):?>
-<input type="submit" name="cmdStartMover" value="_(Move now)_" disabled> _(Mover is running)_
-<?else:?>
-<input type="submit" name="cmdStartMover" value="_(Move now)_">
-<?endif;?>
-<?endif;?>
-<?endif;?>
+: <span class="buttons-spaced">
+    <input type="submit" name="changeMover" value="_(Apply)_" disabled>
+    <input type="button" value="_(Done)_" onclick="done()">
+    <?if ($showMoverButton):?>
+      <input type="submit" name="cmdStartMover" value="_(Move now)_"<?if ($moverRunning):?> disabled<?endif;?>>
+      <?if ($moverRunning):?><span>_(Mover is running)_</span><?endif;?>
+    <?endif;?>
+  </span>
 </form>

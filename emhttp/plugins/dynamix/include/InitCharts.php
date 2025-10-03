@@ -13,8 +13,12 @@
 <?
 $docroot ??= ($_SERVER['DOCUMENT_ROOT'] ?: '/usr/local/emhttp');
 
+require_once "$docroot/plugins/dynamix/include/Wrappers.php";
+
 $charts = '/var/tmp/charts_data.tmp';
 $cookie = '/boot/config/dashboard_settings.json';
+
+// get and set commands no longer utilized in dashstats.page, but leave in place for future reference
 
 switch ($_POST['cmd']) {
 case 'get':
@@ -24,7 +28,7 @@ case 'set':
   file_put_contents($charts,$_POST['data']);
   break;
 case 'cookie':
-  if ($_POST['data'] == '{}') @unlink($cookie); else file_put_contents($cookie,$_POST['data']);
+  if ($_POST['data'] == '{}') @unlink($cookie); else file_put_contents_atomic($cookie,$_POST['data']);
   break;
 }
 ?>

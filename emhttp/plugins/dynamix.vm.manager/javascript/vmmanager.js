@@ -83,7 +83,7 @@ function ajaxVMDispatchWebUI(params, spin){
     }
   },'json');
 }
-function addVMContext(name, uuid, template, state, vmrcurl, vmrcprotocol, log, fstype="QEMU",consolein="web;no",usage=false,webui=""){  
+function addVMContext(name, uuid, template, state, vmrcurl, vmrcprotocol, log, fstype="QEMU",consolein="web;no",usage=false,webui="",pcierror=false){  
   var opts = [];
   var path = location.pathname;
   var x = path.indexOf("?");
@@ -172,22 +172,28 @@ function addVMContext(name, uuid, template, state, vmrcurl, vmrcprotocol, log, f
       ajaxVMDispatch({action:"domain-destroy", uuid:uuid}, "loadlist");
     }});
   } else {
-    opts.push({text:_("Start"), icon:"fa-play", action:function(e) {
-      e.preventDefault();
-      ajaxVMDispatch({action:"domain-start", uuid:uuid}, "loadlist");
-    }});
-    if (vmrcprotocol == "VNC" || vmrcprotocol == "SPICE") { 
-      if (console == "web" || console == "both")  {
-        opts.push({text:_("Start with console")+ " (" + vmrcprotocol + ")" , icon:"fa-play", action:function(e) {
-          e.preventDefault();
-          ajaxVMDispatchconsole({action:"domain-start-console", uuid:uuid, vmrcurl:vmrcurl}, "loadlist") ;  
-        }});}
-      if (console == "remote" || console == "both")  {
-        opts.push({text:_("Start with remote-viewer")+ " (" + vmrcprotocol + ")" , icon:"fa-play", action:function(e) {
-          e.preventDefault();
-          ajaxVMDispatchconsoleRV({action:"domain-start-consoleRV", uuid:uuid, vmrcurl:vmrcurl}, "loadlist") ;  
-        }});
+    if (!pcierror) {
+      opts.push({text:_("Start"), icon:"fa-play", action:function(e) {
+        e.preventDefault();
+        ajaxVMDispatch({action:"domain-start", uuid:uuid}, "loadlist");
+      }});
+      if (vmrcprotocol == "VNC" || vmrcprotocol == "SPICE") { 
+        if (console == "web" || console == "both")  {
+          opts.push({text:_("Start with console")+ " (" + vmrcprotocol + ")" , icon:"fa-play", action:function(e) {
+            e.preventDefault();
+            ajaxVMDispatchconsole({action:"domain-start-console", uuid:uuid, vmrcurl:vmrcurl}, "loadlist") ;  
+          }});}
+        if (console == "remote" || console == "both")  {
+          opts.push({text:_("Start with remote-viewer")+ " (" + vmrcprotocol + ")" , icon:"fa-play", action:function(e) {
+            e.preventDefault();
+            ajaxVMDispatchconsoleRV({action:"domain-start-consoleRV", uuid:uuid, vmrcurl:vmrcurl}, "loadlist") ;  
+          }});
+        }
       }
+    } else {
+      opts.push({text:_("Start disabled due to PCI Changes"), icon:"fa fa-minus-circle orb red-orb", action:function(e) {
+        e.preventDefault();
+      }});
     }
   }
   opts.push({divider:true});
@@ -223,22 +229,20 @@ function addVMContext(name, uuid, template, state, vmrcurl, vmrcprotocol, log, f
         ajaxVMDispatch({action:"domain-undefine",uuid:uuid}, "loadlist");
       });
     }});
-    if (template != 'OpenELEC') {
-      opts.push({text:_("Remove VM")+" & "+_("Disks"), icon:"fa-trash", action:function(e) {
-        e.preventDefault();
-        swal({
-          title:_("Are you sure?"),
-          text:_("Completely REMOVE")+" "+name+" "+_("disk image and definition"),
-          type:"warning",
-          showCancelButton:true,
-          confirmButtonText:_('Proceed'),
-          cancelButtonText:_('Cancel')
-        },function(){
-          $('#vm-'+uuid).find('i').removeClass('fa-play fa-square fa-pause').addClass('fa-refresh fa-spin');
-          ajaxVMDispatch({action:"domain-delete",uuid:uuid}, "loadlist");
-        });
-      }});
-    }
+    opts.push({text:_("Remove VM")+" & "+_("Disks"), icon:"fa-trash", action:function(e) {
+      e.preventDefault();
+      swal({
+        title:_("Are you sure?"),
+        text:_("Completely REMOVE")+" "+name+" "+_("disk image and definition"),
+        type:"warning",
+        showCancelButton:true,
+        confirmButtonText:_('Proceed'),
+        cancelButtonText:_('Cancel')
+      },function(){
+        $('#vm-'+uuid).find('i').removeClass('fa-play fa-square fa-pause').addClass('fa-refresh fa-spin');
+        ajaxVMDispatch({action:"domain-delete",uuid:uuid}, "loadlist");
+      });
+    }});
   }
   if (usage) { context.destroy('#vmusage-'+uuid); context.attach('#vmusage-'+uuid, opts); } else { context.destroy('#vm-'+uuid); context.attach('#vm-'+uuid, opts); }
 }

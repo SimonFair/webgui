@@ -21,7 +21,7 @@ require_once "$docroot/plugins/dynamix.docker.manager/include/DockerClient.php";
 require_once "$docroot/plugins/dynamix.vm.manager/include/libvirt_helpers.php";
 
 if (isset($_POST['ntp'])) {
-  if (exec("pgrep -cf /usr/sbin/ptp4l")) {
+  if (exec("pgrep --ns $$ -cf /usr/sbin/ptp4l")) {
     // ptp sync
     if (exec("pmc -ub0 'GET TIME_STATUS'|awk '$1==\"gmPresent\"{print $2;exit}'")) {
       $ptp = abs(exec("pmc -ub0 'GET CURRENT'|awk '$1==\"offsetFromMaster\"{print $2;exit}'"));
@@ -37,7 +37,7 @@ if (isset($_POST['ntp'])) {
     } else {
       die(_('Clock is unsynchronized with no PTP servers'));
     }
-  } elseif (exec("pgrep -cf /usr/sbin/ntpd")) {
+  } elseif (exec("pgrep --ns $$ -cf /usr/sbin/ntpd")) {
     // ntp sync
     $ntp = exec("ntpq -pn|awk '$1~/^\*/{print $9;exit}'");
     if ($ntp) {
@@ -115,6 +115,7 @@ if ($_POST['vms']) {
   }
   echo "<tr title='' class='updated'><td>";
   $running = 0;
+  $pci_device_changes = comparePCIData();
   foreach ($vms as $vm) {
     $res = $lv->get_domain_by_name($vm);
     $uuid = libvirt_domain_get_uuid_string($res);
@@ -155,8 +156,15 @@ if ($_POST['vms']) {
     $log = (is_file("/var/log/libvirt/qemu/$vm.log") ? "libvirt/qemu/$vm.log" : '');
     if (!isset($domain_cfg["CONSOLE"])) $vmrcconsole = "web"; else $vmrcconsole = $domain_cfg["CONSOLE"];
     if (!isset($domain_cfg["RDPOPT"])) $vmrcconsole .= ";no"; else $vmrcconsole .= ";".$domain_cfg["RDPOPT"];
-    $WebUI = html_entity_decode($arrConfig["template"]["webui"]);
-    $menu = sprintf("onclick=\"addVMContext('%s','%s','%s','%s','%s','%s','%s','%s','%s','%s','%s')\"", addslashes($vm), addslashes($uuid), addslashes($template), $state, addslashes($vmrcurl), strtoupper($vmrcprotocol), addslashes($log),addslashes($fstype), $vmrcconsole,false,addslashes(str_replace('"',"'",$WebUI)));
+    $WebUI = html_entity_decode($arrConfig["template"]["webui"]??"");
+    $vmpciids = $lv->domain_get_vm_pciids($vm);
+    $pcierror = false;
+    foreach($vmpciids as $pciid => $pcidetail) {
+      if (isset($pci_device_changes["0000:".$pciid])) {
+        $pcierror = true;
+      }
+    }
+    $menu = sprintf("onclick=\"addVMContext('%s','%s','%s','%s','%s','%s','%s','%s','%s','%s','%s','%s')\"", addslashes($vm), addslashes($uuid), addslashes($template), $state, addslashes($vmrcurl), strtoupper($vmrcprotocol), addslashes($log),addslashes($fstype), $vmrcconsole,false,addslashes(str_replace('"',"'",$WebUI)),$pcierror);
     $icon = $lv->domain_get_icon_url($res);
     switch ($state) {
     case 'running':
@@ -178,7 +186,9 @@ if ($_POST['vms']) {
       break;
     }
     $image = substr($icon,-4)=='.png' ? "<img src='$icon' class='img'>" : (substr($icon,0,5)=='icon-' ? "<i class='$icon img'></i>" : "<i class='fa fa-$icon img'></i>");
-    echo "<span class='outer solid vms $status'><span id='vm-$uuid' $menu class='hand'>$image</span><span class='inner'>$vm<br><i class='fa fa-$shape $status $color'></i><span class='state'>"._($status)."</span></span></span>";
+    echo "<span class='outer solid vms $status'><span id='vm-$uuid' $menu class='hand'>$image</span><span class='inner'>$vm";
+    if ($pcierror) echo "<i class=\"fa fa-warning fa-fw orange-text\" title=\""._('PCI Changed')."\n"._('Start disabled')."\"></i>";
+    echo "<br><i class='fa fa-$shape $status $color'></i><span class='state'>"._($status)."</span></span></span>";
     if ($state == "running") {
       #Build VM Usage array.
       $menuusage = sprintf("onclick=\"addVMContext('%s','%s','%s','%s','%s','%s','%s','%s','%s','%s','%s')\"", addslashes($vm), addslashes($uuid), addslashes($template), $state, addslashes($vmrcurl), strtoupper($vmrcprotocol), addslashes($log),addslashes($fstype), $vmrcconsole,true,addslashes(str_replace('"',"'",$WebUI)));
