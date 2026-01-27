@@ -105,7 +105,7 @@ function my_power($power) {
 }
 
 function device_info(&$disk,$online,$poolName='',$poolstatusData=[]) {
-  global $pools, $var, $sec, $disks;
+  global $pools, $var, $sec, $disks, $duplicate_devices;
   if (!$online || _var($disk,'fsStatus')!='Mounted' || (in_array(_var($disk,'type'),['Parity','Cache']) && (!in_array(_var($disk,'name'),$pools) || isSubpool(_var($disk,'name'))))) {
     $view = "<a class='view'></a>";
   } else {
@@ -149,7 +149,17 @@ function device_info(&$disk,$online,$poolName='',$poolstatusData=[]) {
   $warn   = ($name == 'flash') && _var($var,'shareSMBEnabled')=='yes' && $sec['flash']['export']=='e' && $sec['flash']['security']=='public'
           ? "&nbsp;<a class='info'><i class='fa fa-warning fa-fw orange-text'></i><span>"._('Boot device is set as public share')."<br>"._('Please change share SMB security')."<br>"._('Click on **FLASH** above this message')."</span></a>"
           : "";
-  
+
+  $warndup = '';
+  $devName = _var($disk,'device','');
+  $fullDevName = "/dev/" . _var($disk,'device', '');
+  if (!$online && isset($duplicate_devices[$fullDevName])) {
+    $duplicate  = isset($duplicate_devices[$fullDevName]['other_devices']) ? implode("<br>", $duplicate_devices[$fullDevName]['other_devices'])."<br>" : "";
+    #$duplicate = json_encode($duplicate_devices[$fullDevName]);
+    $isduplicate = isset($duplicate_devices[$fullDevName]) ? "true" : "false";
+    $warndup .= "<a class='info'><i class='fa fa-clone fa-fw orange-text'></i><span>".$duplicate._('Duplicate device identifier detected (WWID or Serial)')."&nbsp;</span></a>";
+  }
+
   // Add pool status for zfs and btrfs pools only (first device only)
   $poolstatusHTML = "";
   if ($poolName && !empty($poolstatusData['pools'][$poolName]) && $name == $poolName) {
@@ -171,7 +181,7 @@ function device_info(&$disk,$online,$poolName='',$poolstatusData=[]) {
     }
   }
   
-  return $view.$status.$link.$poolstatusHTML.$warn;
+  return $view.$status.$warndup.$link.$poolstatusHTML.$warn;
 }
 
 function device_desc(&$disk, $poolName='', $poolstatusData=[]) {
@@ -593,6 +603,17 @@ while (true) {
     }
   }
   $pool_check_counter++;
+
+  static $duplicate_devices = [];
+  static $duplicate_check_counter = 0;
+  if (_var($var,'fsState')=='Stopped' && $duplicate_check_counter % 30 == 0) {
+      $duplicate_devices = json_decode(find_duplicate_disks_json(), true);
+  }
+  
+  if (_var($var,'fsState')!='Stopped') {
+    $duplicate_devices = [];
+  }
+  $duplicate_check_counter++;
 
   $a = 'array_devices';
   $echo[$a] = [];
