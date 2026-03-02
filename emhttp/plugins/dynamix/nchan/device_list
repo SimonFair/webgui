@@ -1143,9 +1143,15 @@ while (true) {
       );
       if ($dataRow !== '') $echo[$a][] = $dataRow;
       $memberIndex = 1;
+      $poolDisplay = _($poolLabel,3);
+      $isSubpool = isSubpool($pool);
+      $subpoolDisplay = $isSubpool ? ucfirst(_($isSubpool,3)) : '';
+      $rootDisplay = _((ucfirst($root)),3);
       foreach ($Cache as $disk) if (prefix(_var($disk,'name'))==$pool) {
         $memberDeviceUrl = "/Main/Device?name=".urlencode(_var($disk,'name',$pool));
-        $memberLabel = sprintf(_('Device %d'), $memberIndex++);
+        $memberLabel = $isSubpool
+          ? $rootDisplay." » ".$subpoolDisplay." » ".sprintf('%d', $memberIndex++)
+          : $poolDisplay." » ".sprintf('%d', $memberIndex++);
         $echo[$a][] = array_offline($disk,$pool,[
           'displayName' => $memberLabel,
           'rawDisplayName' => true,
@@ -1173,9 +1179,11 @@ while (true) {
       if (isSubpool($pool)) {
         $memberIndex = 1;
         $subpoolType = isSubpool($pool);
+        $rootDisplay = _((ucfirst($root)),3);
+        $subpoolDisplay = ucfirst(_($subpoolType,3));
         foreach ($Cache as $disk) if (prefix(_var($disk,'name'))==$pool) {
           $memberDeviceUrl = "/Main/Device?name=".urlencode(_var($disk,'name',$pool));
-          $memberLabel = "» ".ucfirst(_($subpoolType,3))." ".sprintf(_('Device %d'), $memberIndex++);
+          $memberLabel = $rootDisplay." » ".$subpoolDisplay." » ".sprintf('%d', $memberIndex++);
           $fstype = str_replace('luks:','',_var($disk,'fsType'));
           $echo[$a][] = array_online(
             $disk,
@@ -1284,9 +1292,10 @@ while (true) {
       );
       if ($dataRow !== '') $echo[$a][] = $dataRow;
       $memberIndex = 1;
+      $poolDisplay = _($poolLabel,3);
       foreach ($Cache as $disk) if (prefix(_var($disk,'name'))==$pool) {
         $memberDeviceUrl = "/Main/Device?name=".urlencode(_var($disk,'name',$pool));
-        $memberLabel = sprintf(_('Device %d'), $memberIndex++);
+        $memberLabel = $poolDisplay." » ".sprintf('%d', $memberIndex++);
         $fstype = str_replace('luks:','',_var($disk,'fsType'));
         $echo[$a][] = array_online(
           $disk,
